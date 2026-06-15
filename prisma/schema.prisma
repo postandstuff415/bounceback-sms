@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPERADMIN
+  AGENCY
+  USER
+}
+
+model Account {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  businessName       String
+  realPhoneNumber    String    // User's actual phone line
+  assignedTwilioNum  String?   @unique // Dynamically provisioned Twilio number
+  bookingLink        String    // e.g., Calendly, Acuity, GlossGenius
+  role               Role      @default(USER)
+  stripeCustomerId   String?   @unique
+  stripePriceId      String?
+  subscriptionStatus String    @default("inactive") // active, trialing, past_due, inactive
+  agencyId           String?
+  agency             Account?  @relation("AgencyToSubAccount", fields: [agencyId], references: [id])
+  subAccounts        Account[] @relation("AgencyToSubAccount")
+  createdAt          DateTime  @default(now())
+  logs               CallLog[]
+}
+
+model CallLog {
+  id              String   @id @default(uuid())
+  accountId       String
+  account         Account  @relation(fields: [accountId], references: [id])
+  callerNumber    String
+  callStatus      String   // busy, no-answer, completed
+  smsSent         Boolean  @default(false)
+  revenueSavedEst Float    @default(0.0) // Auto-calculated based on a standard local service value ($60.00)
+  timestamp       DateTime @default(now())
+}
