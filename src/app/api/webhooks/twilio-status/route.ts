@@ -18,6 +18,52 @@ const isTwilioConfigured = () => {
   );
 };
 
+// Helper to fire Capacitor push notification telemetry
+async function firePushNotification(account: any, callerNumber: string) {
+  const payload = {
+    title: "Call Rescued!",
+    body: `Intercepted missed call from ${callerNumber} and auto-sent booking link.`,
+    data: {
+      accountId: account.id,
+      callerNumber: callerNumber,
+      timestamp: new Date().toISOString()
+    }
+  };
+
+  console.log(`\n🔔 [Capacitor Push Notification Telemetry]`);
+  console.log(`   - Target Device (Account: ${account.email})`);
+  console.log(`   - Plugin: @capacitor/push-notifications`);
+  console.log(`   - Payload Title: "${payload.title}"`);
+  console.log(`   - Payload Body: "${payload.body}"\n`);
+
+  const fcmServerKey = process.env.FCM_SERVER_KEY;
+  if (fcmServerKey && fcmServerKey !== "your_fcm_server_key_here") {
+    try {
+      console.log(`[FCM Push Dispatch] Sending push notification via Firebase Cloud Messaging...`);
+      await fetch(`https://fcm.googleapis.com/fcm/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `key=${fcmServerKey}`
+        },
+        body: JSON.stringify({
+          to: "/topics/all",
+          notification: {
+            title: payload.title,
+            body: payload.body,
+            sound: "default"
+          },
+          data: payload.data
+        })
+      });
+    } catch (pushErr: any) {
+      console.error(`[FCM Push Dispatch Error] Failed to send FCM push:`, pushErr.message);
+    }
+  } else {
+    console.log(`[Mock FCM Push] (FCM_SERVER_KEY not configured) Push notification telemetry successfully logged to console.`);
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -105,6 +151,8 @@ export async function POST(req: Request) {
             });
             smsSent = true;
             console.log(`[Twilio SMS] Missed call text-back sent to ${from} from ${twilioFrom}`);
+            // Fire push notification telemetry to device
+            await firePushNotification(account, from);
           } else {
             console.warn("[Twilio SMS] No Twilio phone number available to send SMS from.");
           }
@@ -114,6 +162,8 @@ export async function POST(req: Request) {
       } else {
         console.log(`[Mock Twilio SMS] (Credentials not configured) Sending mock text-back to ${from} with booking link: ${account.bookingLink}`);
         smsSent = true; // Mark as true in mock mode to verify the successful recovery flow
+        // Fire push notification telemetry to device
+        await firePushNotification(account, from);
       }
     }
 

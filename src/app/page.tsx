@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Preferences } from "@capacitor/preferences";
+import { PushNotifications } from "@capacitor/push-notifications";
 
 interface CallLog {
   id: string;
@@ -74,6 +75,44 @@ export default function Home() {
 
     checkSession();
   }, []);
+
+  // Register push notifications when user logs in/session is verified
+  useEffect(() => {
+    if (typeof window !== "undefined" && (window as any).Capacitor) {
+      const registerPush = async () => {
+        try {
+          let permStatus = await PushNotifications.checkPermissions();
+
+          if (permStatus.receive === "prompt") {
+            permStatus = await PushNotifications.requestPermissions();
+          }
+
+          if (permStatus.receive === "granted") {
+            await PushNotifications.register();
+            
+            // Listen for registration token success
+            await PushNotifications.addListener("registration", (token) => {
+              console.log("[Push Registration] Success! Token:", token.value);
+            });
+
+            // Listen for registration error
+            await PushNotifications.addListener("registrationError", (err) => {
+              console.error("[Push Registration] Error:", err);
+            });
+
+            // Listen for incoming notifications
+            await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+              console.log("[Push Notification] Received payload:", notification);
+            });
+          }
+        } catch (err) {
+          console.error("Failed to initialize push notifications:", err);
+        }
+      };
+
+      registerPush();
+    }
+  }, [userEmail]);
 
   // Fetch dashboard data when userEmail is set
   useEffect(() => {

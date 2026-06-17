@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 
 export default function OnboardPage() {
@@ -16,6 +16,27 @@ export default function OnboardPage() {
     bookingLink: "",
     agencyId: "",
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const email = params.get("email") || "";
+      const businessName = params.get("businessName") || "";
+      const realPhoneNumber = params.get("realPhoneNumber") || "";
+      const bookingLink = params.get("bookingLink") || "";
+      const agencyId = params.get("agencyId") || "";
+
+      if (email || businessName || realPhoneNumber || bookingLink || agencyId) {
+        setFormData({
+          email,
+          businessName,
+          realPhoneNumber,
+          bookingLink,
+          agencyId,
+        });
+      }
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
