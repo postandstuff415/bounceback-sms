@@ -100,23 +100,23 @@ export default function OnboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-zinc-50 flex flex-col justify-center pt-[calc(env(safe-area-inset-top)+2rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)] px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <span className="text-3xl font-extrabold text-blue-600 tracking-tight flex items-center gap-2">
             📲 BounceBack <span className="text-zinc-900">SMS</span>
           </span>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-zinc-900">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-zinc-950">
           Set up your text-back system
         </h2>
-        <p className="mt-2 text-center text-sm text-zinc-600">
+        <p className="mt-2 text-center text-sm text-zinc-500">
           Recover lost leads immediately. Never miss another booking.
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-zinc-100">
+        <div className="bg-white py-8 px-4 shadow-xl rounded-3xl sm:rounded-3xl sm:px-10 border border-zinc-100">
           {/* Progress Indicators */}
           <div className="mb-8">
             <div className="flex items-center justify-between">
@@ -128,7 +128,7 @@ export default function OnboardPage() {
                 >
                   1
                 </div>
-                <span className="ml-2 text-xs font-medium text-zinc-950 hidden sm:inline">Business</span>
+                <span className="ml-2 text-xs font-semibold text-zinc-950 hidden sm:inline">Business</span>
               </div>
               <div className="flex-1 border-t border-zinc-200 mx-4" />
               <div className="flex items-center">
@@ -139,7 +139,7 @@ export default function OnboardPage() {
                 >
                   2
                 </div>
-                <span className="ml-2 text-xs font-medium text-zinc-950 hidden sm:inline">Phone Setup</span>
+                <span className="ml-2 text-xs font-semibold text-zinc-950 hidden sm:inline">Phone Setup</span>
               </div>
               <div className="flex-1 border-t border-zinc-200 mx-4" />
               <div className="flex items-center">
@@ -150,7 +150,7 @@ export default function OnboardPage() {
                 >
                   3
                 </div>
-                <span className="ml-2 text-xs font-medium text-zinc-950 hidden sm:inline">Booking</span>
+                <span className="ml-2 text-xs font-semibold text-zinc-950 hidden sm:inline">Booking</span>
               </div>
             </div>
           </div>
@@ -166,10 +166,10 @@ export default function OnboardPage() {
             {step === 1 && (
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="businessName" className="block text-sm font-medium text-zinc-700">
+                  <label htmlFor="businessName" className="block text-sm font-semibold text-zinc-700">
                     Business Name
                   </label>
-                  <div className="mt-1">
+                  <div className="mt-1.5">
                     <input
                       type="text"
                       name="businessName"
@@ -178,16 +178,16 @@ export default function OnboardPage() {
                       value={formData.businessName}
                       onChange={handleChange}
                       placeholder="e.g. Austin Mobile Detailing"
-                      className="appearance-none block w-full px-3 py-2 border border-zinc-300 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                      className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-zinc-700">
+                  <label htmlFor="email" className="block text-sm font-semibold text-zinc-700">
                     Contact Email Address
                   </label>
-                  <div className="mt-1">
+                  <div className="mt-1.5">
                     <input
                       type="email"
                       name="email"
@@ -196,7 +196,7 @@ export default function OnboardPage() {
                       value={formData.email}
                       onChange={handleChange}
                       placeholder="owner@yourdomain.com"
-                      className="appearance-none block w-full px-3 py-2 border border-zinc-300 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                      className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
                   </div>
                 </div>
@@ -205,7 +205,7 @@ export default function OnboardPage() {
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="w-full flex items-center justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px]"
                   >
                     Continue to Step 2
                   </button>
@@ -216,13 +216,13 @@ export default function OnboardPage() {
             {step === 2 && (
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="realPhoneNumber" className="block text-sm font-medium text-zinc-700">
+                  <label htmlFor="realPhoneNumber" className="block text-sm font-semibold text-zinc-700">
                     Your Real Phone Number
                   </label>
-                  <p className="text-xs text-zinc-500 mb-2">
+                  <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
                     Your business phone line. We will intercept missed calls here and forward your Twilio number to this phone.
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-1.5">
                     <input
                       type="tel"
                       name="realPhoneNumber"
@@ -231,7 +231,7 @@ export default function OnboardPage() {
                       value={formData.realPhoneNumber}
                       onChange={handleChange}
                       placeholder="(512) 555-0199"
-                      className="appearance-none block w-full px-3 py-2 border border-zinc-300 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                      className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
                   </div>
                 </div>
@@ -240,14 +240,14 @@ export default function OnboardPage() {
                   <button
                     type="button"
                     onClick={handlePrev}
-                    className="w-1/3 flex justify-center py-2.5 px-4 border border-zinc-300 rounded-md text-sm font-semibold text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="w-1/3 flex items-center justify-center py-3.5 px-4 border border-zinc-300 rounded-xl text-sm font-semibold text-zinc-700 bg-white hover:bg-zinc-50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px]"
                   >
                     Back
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="w-2/3 flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="w-2/3 flex items-center justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px]"
                   >
                     Continue to Step 3
                   </button>
@@ -258,13 +258,13 @@ export default function OnboardPage() {
             {step === 3 && (
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="bookingLink" className="block text-sm font-medium text-zinc-700">
+                  <label htmlFor="bookingLink" className="block text-sm font-semibold text-zinc-700">
                     Booking or Scheduling Link
                   </label>
-                  <p className="text-xs text-zinc-500 mb-2">
+                  <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
                     Where should customers schedule their appointments? (Calendly, Acuity, GlossGenius, etc.)
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-1.5">
                     <input
                       type="url"
                       name="bookingLink"
@@ -273,16 +273,16 @@ export default function OnboardPage() {
                       value={formData.bookingLink}
                       onChange={handleChange}
                       placeholder="https://calendly.com/your-business"
-                      className="appearance-none block w-full px-3 py-2 border border-zinc-300 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                      className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="agencyId" className="block text-sm font-medium text-zinc-700">
+                  <label htmlFor="agencyId" className="block text-sm font-semibold text-zinc-700">
                     Referral Agency ID (Optional)
                   </label>
-                  <div className="mt-1">
+                  <div className="mt-1.5">
                     <input
                       type="text"
                       name="agencyId"
@@ -290,7 +290,7 @@ export default function OnboardPage() {
                       value={formData.agencyId}
                       onChange={handleChange}
                       placeholder="e.g. agency_123"
-                      className="appearance-none block w-full px-3 py-2 border border-zinc-300 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black"
+                      className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
                   </div>
                 </div>
@@ -300,14 +300,14 @@ export default function OnboardPage() {
                     type="button"
                     onClick={handlePrev}
                     disabled={loading}
-                    className="w-1/3 flex justify-center py-2.5 px-4 border border-zinc-300 rounded-md text-sm font-semibold text-zinc-700 bg-white hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
+                    className="w-1/3 flex items-center justify-center py-3.5 px-4 border border-zinc-300 rounded-xl text-sm font-semibold text-zinc-700 bg-white hover:bg-zinc-50 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px] disabled:opacity-50"
                   >
                     Back
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-2/3 flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
+                    className="w-2/3 flex items-center justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px] disabled:opacity-50"
                   >
                     {loading ? "Initializing..." : "Proceed to Checkout ($49/mo)"}
                   </button>
