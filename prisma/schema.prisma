@@ -17,21 +17,24 @@ enum Role {
 }
 
 model Account {
-  id                 String    @id @default(uuid())
-  email              String    @unique
-  businessName       String
-  realPhoneNumber    String    // User's actual phone line
-  assignedTwilioNum  String?   @unique // Dynamically provisioned Twilio number
-  bookingLink        String    // e.g., Calendly, Acuity, GlossGenius
-  role               Role      @default(USER)
-  stripeCustomerId   String?   @unique
-  stripePriceId      String?
-  subscriptionStatus String    @default("inactive") // active, trialing, past_due, inactive
-  agencyId           String?
-  agency             Account?  @relation("AgencyToSubAccount", fields: [agencyId], references: [id])
-  subAccounts        Account[] @relation("AgencyToSubAccount")
-  createdAt          DateTime  @default(now())
-  logs               CallLog[]
+  id                      String    @id @default(uuid())
+  email                   String    @unique
+  businessName            String
+  realPhoneNumber         String    // User's actual phone line
+  assignedTwilioNum       String?   @unique // Dynamically provisioned Twilio number
+  bookingLink             String    // e.g., Calendly, Acuity, GlossGenius
+  role                    Role      @default(USER)
+  stripeCustomerId        String?   @unique
+  stripePriceId           String?
+  subscriptionStatus      String    @default("inactive") // active, trialing, past_due, inactive
+  agencyId                String?
+  agency                  Account?  @relation("AgencyToSubAccount", fields: [agencyId], references: [id])
+  subAccounts             Account[] @relation("AgencyToSubAccount")
+  aiFrontDeskEnabled      Boolean   @default(false)
+  aiFrontDeskPriceMonthly Float     @default(19.95)
+  intakeTickets           IntakeTicket[]
+  createdAt               DateTime  @default(now())
+  logs                    CallLog[]
 }
 
 model CallLog {
@@ -43,4 +46,60 @@ model CallLog {
   smsSent         Boolean  @default(false)
   revenueSavedEst Float    @default(0.0) // Auto-calculated based on a standard local service value ($60.00)
   timestamp       DateTime @default(now())
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DispatchStatus {
+  PENDING
+  SYNCED
+  FAILED
+}
+
+model IntakeTicket {
+  id              String         @id @default(uuid())
+  accountId       String
+  account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  customerName    String
+  customerPhone   String
+  emergencyIssue  String
+  issueSummary    String?        // Filled by AI
+  computedUrgency UrgencyLevel   @default(LOW) // Rated by AI
+  isBooked        Boolean        @default(false)
+  dispatchStatus  DispatchStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([accountId])
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model ScrapeState {
+  id                   String   @id @default(uuid())
+  currentIndustryIndex Int      @default(0)
+  currentCityIndex     Int      @default(0)
+  lastRunTimestamp     DateTime @default(now())
+  isActive             Boolean  @default(true)
+}
+
+model EmailHoldingTank {
+  id                   String      @id @default(uuid())
+  businessName         String
+  emailAddress         String
+  industry             String
+  city                 String
+  estimatedRevenueLoss Float
+  status               EmailStatus @default(PENDING)
+  dispatchedFromInbox  String?
+  createdAt            DateTime    @default(now())
 }
