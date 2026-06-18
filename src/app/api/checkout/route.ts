@@ -37,7 +37,7 @@ export async function POST(req: Request) {
                 name: "BounceBack SMS Subscription",
                 description: "Missed Call Text-Back Automation Service",
               },
-              unit_amount: 4900, // $49.00/month
+              unit_amount: 1999, // $19.99/month
               recurring: {
                 interval: "month",
               },
@@ -46,6 +46,9 @@ export async function POST(req: Request) {
           },
         ],
         mode: "subscription",
+        subscription_data: {
+          trial_period_days: 14,
+        },
         success_url: `${appUrl}/onboard/success?session_id={CHECKOUT_SESSION_ID}&email=${encodeURIComponent(email)}`,
         cancel_url: `${appUrl}/onboard?error=cancelled`,
         metadata: {

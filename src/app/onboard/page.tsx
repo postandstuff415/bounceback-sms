@@ -132,7 +132,7 @@ export default function OnboardPage() {
           Set up your text-back system
         </h2>
         <p className="mt-2 text-center text-sm text-zinc-500">
-          Recover lost leads immediately. Never miss another booking.
+          $0 setup • First 100 leads free • Then $19.99/mo
         </p>
       </div>
 

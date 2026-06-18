@@ -104,7 +104,7 @@ function MockCheckoutForm() {
 
           {/* Pricing Info */}
           <div className="mt-8 flex items-baseline text-zinc-950">
-            <span className="text-5xl font-extrabold tracking-tight">$49.00</span>
+            <span className="text-5xl font-extrabold tracking-tight">$19.99</span>
             <span className="ml-1 text-xl font-semibold text-zinc-500">/ month</span>
           </div>
 
@@ -242,11 +242,11 @@ function MockCheckoutForm() {
               disabled={loading}
               className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-md shadow-sm text-base font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 mt-4"
             >
-              {loading ? "Processing Payment..." : `Pay $49.00`}
+              {loading ? "Processing Payment..." : `Start 14-Day Free Trial`}
             </button>
 
             <p className="text-center text-xs text-zinc-500 mt-4">
-              By clicking Pay, you authorize Stripe (simulated) to charge your payment method for $49.00/mo until you cancel.
+              By clicking Pay, you authorize Stripe (simulated) to charge your payment method for $19.99/mo until you cancel.
             </p>
           </form>
         </div>
