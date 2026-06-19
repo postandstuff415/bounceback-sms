@@ -1,9 +1,33 @@
 import { NextResponse } from "next/server";
+import twilio from "twilio";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // 1. Twilio Request Validation
+  const signature = req.headers.get("x-twilio-signature") || "";
+  const url = process.env.NEXT_PUBLIC_APP_URL + "/api/webhooks/twilio-voice";
+  
+  // Note: Validation is bypassed in development or if AUTH_TOKEN is missing
+  const authToken = process.env.TWILIO_AUTH_TOKEN || "";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction && authToken && signature) {
+    // We need the raw body as form-data for Twilio validation
+    const clonedReq = req.clone();
+    const formData = await clonedReq.formData();
+    const params: Record<string, string> = {};
+    formData.forEach((value, key) => {
+      params[key] = value.toString();
+    });
+
+    const isValid = twilio.validateRequest(authToken, signature, url, params);
+    if (!isValid) {
+      console.error("[Twilio Voice Webhook] Invalid signature. Access denied.");
+      return new NextResponse("Invalid signature", { status: 403 });
+    }
+  }
   try {
     let to = "";
     let from = "";

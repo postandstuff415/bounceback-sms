@@ -38,6 +38,8 @@ model Account {
 }
 
 model CallLog {
+  @@index([accountId])
+  @@index([timestamp])
   id              String   @id @default(uuid())
   accountId       String
   account         Account  @relation(fields: [accountId], references: [id])

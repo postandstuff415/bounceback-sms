@@ -65,6 +65,29 @@ async function firePushNotification(account: any, callerNumber: string) {
 }
 
 export async function POST(req: Request) {
+  // 1. Twilio Request Validation
+  const signature = req.headers.get("x-twilio-signature") || "";
+  const { searchParams: urlSearchParams } = new URL(req.url);
+  const accountIdForValidation = urlSearchParams.get("accountId");
+  const url = process.env.NEXT_PUBLIC_APP_URL + "/api/webhooks/twilio-status?accountId=" + accountIdForValidation;
+  
+  const authToken = process.env.TWILIO_AUTH_TOKEN || "";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction && authToken && signature) {
+    const clonedReq = req.clone();
+    const formData = await clonedReq.formData();
+    const params: Record<string, string> = {};
+    formData.forEach((value, key) => {
+      params[key] = value.toString();
+    });
+
+    const isValid = twilio.validateRequest(authToken, signature, url, params);
+    if (!isValid) {
+      console.error("[Twilio Status Webhook] Invalid signature. Access denied.");
+      return new NextResponse("Invalid signature", { status: 403 });
+    }
+  }
   try {
     const { searchParams } = new URL(req.url);
     const accountId = searchParams.get("accountId");

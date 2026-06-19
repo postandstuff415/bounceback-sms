@@ -6,7 +6,12 @@ const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: NextRequest) {
   try {
-    const { accountId, name, phone, issue } = await req.json();
+    let { accountId, name, phone, issue } = await req.json();
+
+    // Basic sanitization
+    name = name?.substring(0, 100).trim();
+    phone = phone?.replace(/[^0-9+]/g, "").substring(0, 20);
+    issue = issue?.substring(0, 1000).trim();
 
     if (!accountId || !name || !phone || !issue) {
       return NextResponse.json({ error: "Missing required form properties." }, { status: 400 });
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest) {
     const prompt = `Analyze this customer residential repair emergency text and extract critical parameters.
 CRITICAL RESTRICTION: You are strictly an administrative intake analyzer. You are barred from open conversation or pricing estimations.
 
-Customer Input: "${issue}"
+Customer Input: """${issue.replace(/"""/g, "'''")}"""
 
 Respond ONLY with a JSON object in this format:
 {
