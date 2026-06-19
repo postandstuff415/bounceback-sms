@@ -7,6 +7,7 @@ export default function OnboardPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -86,6 +87,10 @@ export default function OnboardPage() {
     }
     if (!formData.bookingLink.startsWith("http://") && !formData.bookingLink.startsWith("https://")) {
       setError("Booking link must start with http:// or https://");
+      return;
+    }
+    if (!consentAccepted) {
+      setError("You must agree to the Terms of Service and Privacy Policy to proceed.");
       return;
     }
 
@@ -313,6 +318,33 @@ export default function OnboardPage() {
                       placeholder="e.g. agency_123"
                       className="appearance-none block w-full px-4 py-3 border border-zinc-300 rounded-xl shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-black h-[48px] transition-all"
                     />
+                  </div>
+                </div>
+
+                <div className="flex items-start pt-2">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="consent"
+                      name="consent"
+                      type="checkbox"
+                      required
+                      checked={consentAccepted}
+                      onChange={(e) => setConsentAccepted(e.target.checked)}
+                      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-zinc-300 rounded"
+                    />
+                  </div>
+                  <div className="ml-3 text-xs leading-relaxed">
+                    <label htmlFor="consent" className="font-medium text-zinc-600">
+                      I agree to the{" "}
+                      <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+                        Privacy Policy
+                      </a>{" "}
+                      including the secure collection of caller telemetry and missed-call text-back processing.
+                    </label>
                   </div>
                 </div>
 

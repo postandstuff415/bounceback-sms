@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
+import { encrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -194,17 +195,20 @@ export async function POST(req: Request) {
     // A missed call saves $60 in revenue (if SMS was sent), whereas a completed call saves $0.
     const revenueSaved = wasMissed && smsSent ? 60.0 : 0.0;
 
+    // Encrypt the caller's phone number before storing (PII protection)
+    const encryptedCallerNumber = encrypt(from);
+
     await prisma.callLog.create({
       data: {
         accountId: account.id,
-        callerNumber: from || "Unknown",
+        callerNumber: encryptedCallerNumber,
         callStatus: finalStatus,
         smsSent: smsSent,
         revenueSavedEst: revenueSaved,
       },
     });
 
-    console.log(`[Twilio Status Webhook] Logged CallLog entry. Account ID: ${account.id}, Caller: ${from}, Status: ${finalStatus}, SMSSent: ${smsSent}, RevenueSaved: $${revenueSaved}`);
+    console.log(`[Twilio Status Webhook] Logged CallLog entry. Account ID: ${account.id}, EncryptedCaller: yes, Status: ${finalStatus}, SMSSent: ${smsSent}, RevenueSaved: $${revenueSaved}`);
 
     // Return blank TwiML to end execution gracefully
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>

@@ -5,10 +5,13 @@ const path = require('path');
 const projectRoot = path.resolve(__dirname, '..');
 const apiPath = path.join(projectRoot, 'src', 'app', 'api');
 const backupPath = path.join(projectRoot, 'api-backup');
+const intakePath = path.join(projectRoot, 'src', 'app', 'intake');
+const intakeBackupPath = path.join(projectRoot, 'intake-backup');
 
 console.log('Starting mobile static build pipeline...');
 
 let apiMoved = false;
+let intakeMoved = false;
 
 try {
   // 1. Move src/app/api to api-backup
@@ -18,6 +21,15 @@ try {
     apiMoved = true;
   } else {
     console.log('API routes directory not found, skipping move.');
+  }
+
+  // 1b. Move src/app/intake to intake-backup to avoid dynamic static-export compilation issues
+  if (fs.existsSync(intakePath)) {
+    console.log(`Temporarily moving intake routes from ${intakePath} to ${intakeBackupPath}...`);
+    fs.renameSync(intakePath, intakeBackupPath);
+    intakeMoved = true;
+  } else {
+    console.log('Intake routes directory not found, skipping move.');
   }
 
   // 2. Run next build with EXPORT_MODE=true
@@ -40,5 +52,10 @@ try {
   if (apiMoved && fs.existsSync(backupPath)) {
     console.log(`Restoring API routes from ${backupPath} to ${apiPath}...`);
     fs.renameSync(backupPath, apiPath);
+  }
+  // 4b. Restore src/app/intake
+  if (intakeMoved && fs.existsSync(intakeBackupPath)) {
+    console.log(`Restoring intake routes from ${intakeBackupPath} to ${intakePath}...`);
+    fs.renameSync(intakeBackupPath, intakePath);
   }
 }

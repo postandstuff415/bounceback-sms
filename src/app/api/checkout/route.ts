@@ -57,6 +57,8 @@ export async function POST(req: Request) {
           realPhoneNumber,
           bookingLink,
           agencyId: agencyId || "",
+          privacyAccepted: "true",
+          termsAccepted: "true",
         },
       });
 
@@ -70,6 +72,8 @@ export async function POST(req: Request) {
         realPhoneNumber,
         bookingLink,
         agencyId: agencyId || "",
+        privacyAccepted: "true",
+        termsAccepted: "true",
       }).toString();
 
       return NextResponse.json({ url: `/onboard/mock-checkout?${query}` });

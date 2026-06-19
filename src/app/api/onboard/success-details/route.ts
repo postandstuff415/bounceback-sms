@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ account });
+    return NextResponse.json({
+      account: {
+        ...account,
+        realPhoneNumber: decrypt(account.realPhoneNumber),
+      },
+    });
   } catch (error: any) {
     console.error("Error retrieving success details:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

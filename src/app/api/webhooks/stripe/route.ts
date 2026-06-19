@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
 import Stripe from "stripe";
+import { encrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
+
+// Current policy versions — bump these when policies change
+export const PRIVACY_POLICY_VERSION = "2026-06-17-v1";
+export const TERMS_VERSION = "2026-06-17-v1";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -95,6 +100,10 @@ export async function POST(req: Request) {
 
       console.log(`[Stripe Webhook] Processing successful onboarding for: ${businessName} (${email})`);
 
+      // Check if the privacy and terms acceptance flags are in metadata
+      const privacyAccepted = metadata.privacyAccepted === "true";
+      const termsAccepted = metadata.termsAccepted === "true";
+
       // 1. Check if the user already has a provisioned Twilio number
       const existingAccount = await prisma.account.findUnique({
         where: { email: email.toLowerCase() },
@@ -157,27 +166,45 @@ export async function POST(req: Request) {
         }
       }
 
-      // 3. Upsert Account record to database
+      // 3. Upsert Account record to database with policy version tracking
+      const now = new Date();
       await prisma.account.upsert({
         where: { email: email.toLowerCase() },
         update: {
           businessName,
-          realPhoneNumber,
+          realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
           bookingLink,
           stripeCustomerId,
           subscriptionStatus: "active",
           agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          // Record privacy/terms acceptance with version tracking
+          ...(privacyAccepted ? {
+            privacyAccepted: true,
+            privacyAcceptedAt: existingAccount?.privacyAcceptedAt || now,
+            privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+          } : {}),
+          ...(termsAccepted ? {
+            termsAccepted: true,
+            termsAcceptedAt: existingAccount?.termsAcceptedAt || now,
+            termsVersion: TERMS_VERSION,
+          } : {}),
         },
         create: {
           email: email.toLowerCase(),
           businessName,
-          realPhoneNumber,
+          realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
           bookingLink,
           stripeCustomerId,
           subscriptionStatus: "active",
           agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          privacyAccepted,
+          privacyAcceptedAt: privacyAccepted ? now : null,
+          privacyPolicyVersion: privacyAccepted ? PRIVACY_POLICY_VERSION : null,
+          termsAccepted,
+          termsAcceptedAt: termsAccepted ? now : null,
+          termsVersion: termsAccepted ? TERMS_VERSION : null,
         },
       });
 

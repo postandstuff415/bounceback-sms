@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import twilio from "twilio";
 import { prisma } from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -96,14 +97,16 @@ export async function POST(req: Request) {
       });
     }
 
-    console.log(`[Twilio Voice Webhook] Found Account ${account.id} (${account.businessName}) forwarding to real number: ${account.realPhoneNumber}`);
+    const decryptedRealNumber = decrypt(account.realPhoneNumber);
+
+    console.log(`[Twilio Voice Webhook] Found Account ${account.id} (${account.businessName}) forwarding to real number: ${decryptedRealNumber}`);
 
     // Return TwiML to Dial the user's real phone number
     // Configure action URL with account ID to track call status and trigger missed-call SMS text-backs
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial action="/api/webhooks/twilio-status?accountId=${account.id}" method="POST">
-    ${account.realPhoneNumber}
+    ${decryptedRealNumber}
   </Dial>
 </Response>`;
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { encrypt } from "@/lib/encryption";
 
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -62,7 +63,7 @@ Respond ONLY with a JSON object in this format:
       data: {
         accountId,
         customerName: name,
-        customerPhone: phone,
+        customerPhone: encrypt(phone),
         emergencyIssue: issue,
         issueSummary: parsedData.issueSummary,
         computedUrgency: parsedData.urgencyRating,
