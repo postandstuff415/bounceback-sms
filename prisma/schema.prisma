@@ -46,6 +46,17 @@ model Account {
   logs                    CallLog[]
 }
 
+model LeadToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  ticketId  String
+  ticket    IntakeTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
 model CallLog {
   @@index([accountId])
   @@index([timestamp])
@@ -83,6 +94,7 @@ model IntakeTicket {
   computedUrgency UrgencyLevel   @default(LOW) // Rated by AI
   isBooked        Boolean        @default(false)
   dispatchStatus  DispatchStatus @default(PENDING)
+  leadTokens      LeadToken[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
