@@ -20,7 +20,7 @@ model Account {
   id                      String    @id @default(uuid())
   email                   String    @unique
   businessName            String
-  realPhoneNumber         String    // User's actual phone line
+  realPhoneNumber         String    // User's actual phone line (AES-256-GCM encrypted at application layer)
   assignedTwilioNum       String?   @unique // Dynamically provisioned Twilio number
   bookingLink             String    // e.g., Calendly, Acuity, GlossGenius
   role                    Role      @default(USER)
@@ -33,15 +33,37 @@ model Account {
   aiFrontDeskEnabled      Boolean   @default(false)
   aiFrontDeskPriceMonthly Float     @default(19.95)
   intakeTickets           IntakeTicket[]
+  
+  // Privacy & Terms acceptance tracking with versioning
+  privacyAccepted         Boolean   @default(false)
+  privacyAcceptedAt       DateTime?
+  privacyPolicyVersion    String?   // Tracks which version of the Privacy Policy was accepted (e.g., "2026-06-17-v1")
+  termsAccepted           Boolean   @default(false)
+  termsAcceptedAt         DateTime?
+  termsVersion            String?   // Tracks which version of the Terms & Conditions was accepted (e.g., "2026-06-17-v1")
+  
   createdAt               DateTime  @default(now())
   logs                    CallLog[]
 }
 
+model LeadToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  ticketId  String
+  ticket    IntakeTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
 model CallLog {
+  @@index([accountId])
+  @@index([timestamp])
   id              String   @id @default(uuid())
   accountId       String
   account         Account  @relation(fields: [accountId], references: [id])
-  callerNumber    String
+  callerNumber    String   // AES-256-GCM encrypted at application layer
   callStatus      String   // busy, no-answer, completed
   smsSent         Boolean  @default(false)
   revenueSavedEst Float    @default(0.0) // Auto-calculated based on a standard local service value ($60.00)
@@ -61,22 +83,46 @@ enum DispatchStatus {
   FAILED
 }
 
+enum LeadStatus {
+  NEW
+  QUOTED
+  BOOKED
+  LOST
+}
+
 model IntakeTicket {
   id              String         @id @default(uuid())
   accountId       String
   account         Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
   customerName    String
-  customerPhone   String
+  customerPhone   String         // AES-256-GCM encrypted at application layer
   emergencyIssue  String
   issueSummary    String?        // Filled by AI
   computedUrgency UrgencyLevel   @default(LOW) // Rated by AI
   isBooked        Boolean        @default(false)
   dispatchStatus  DispatchStatus @default(PENDING)
+  status          LeadStatus     @default(NEW)
+  notes           String?
+  activities      LeadActivity[]
+  leadTokens      LeadToken[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   @@index([accountId])
 }
+
+model LeadActivity {
+  id           String       @id @default(uuid())
+  ticketId     String
+  ticket       IntakeTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  activityType String       // e.g. "CREATED", "SMS_SENT", "STATUS_CHANGED", "NOTE_ADDED"
+  content      String
+  createdAt    DateTime     @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
 
 enum EmailStatus {
   PENDING

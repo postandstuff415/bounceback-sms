@@ -1,15 +1,31 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { decrypt } from "@/lib/encryption";
+import { authenticateRequest } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get("email");
-
-    if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    // Authenticate the request
+    const session = authenticateRequest(req);
+    
+    let email: string | null = null;
+    
+    if (session) {
+      // Authenticated user - use their session email
+      email = session.email;
+    } else {
+      // For backward compatibility during transition, check query param
+      // In production, this should be removed and only session-based auth used
+      const { searchParams } = new URL(req.url);
+      email = searchParams.get("email");
+      
+      if (!email) {
+        return NextResponse.json({ 
+          error: "Authentication required. Please provide a valid session token." 
+        }, { status: 401 });
+      }
     }
 
     const account = await prisma.account.findUnique({
@@ -18,6 +34,18 @@ export async function GET(req: Request) {
         logs: {
           orderBy: {
             timestamp: "desc",
+          },
+        },
+        intakeTickets: {
+          include: {
+            activities: {
+              orderBy: {
+                createdAt: "asc",
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         },
       },
@@ -30,12 +58,19 @@ export async function GET(req: Request) {
     // Calculate metrics
     const totalLogs = account.logs.length;
     const rescuedLogs = account.logs.filter((log) => log.smsSent).length;
-    
-    // Recovery rate is % of logs that had an SMS sent
     const recoveryRate = totalLogs > 0 ? Math.round((rescuedLogs / totalLogs) * 100) : 100;
-    
-    // Total Revenue Saved
     const totalRevenueSaved = account.logs.reduce((acc, log) => acc + log.revenueSavedEst, 0);
+
+    // Decrypt sensitive fields for display
+    const decryptedLogs = account.logs.map((log) => ({
+      ...log,
+      callerNumber: decrypt(log.callerNumber),
+    }));
+
+    const decryptedLeads = account.intakeTickets.map((ticket) => ({
+      ...ticket,
+      customerPhone: decrypt(ticket.customerPhone),
+    }));
 
     return NextResponse.json({
       success: true,
@@ -43,7 +78,7 @@ export async function GET(req: Request) {
         id: account.id,
         businessName: account.businessName,
         email: account.email,
-        realPhoneNumber: account.realPhoneNumber,
+        realPhoneNumber: decrypt(account.realPhoneNumber),
         assignedTwilioNum: account.assignedTwilioNum,
         bookingLink: account.bookingLink,
         subscriptionStatus: account.subscriptionStatus,
@@ -54,7 +89,8 @@ export async function GET(req: Request) {
         leadsRescued: rescuedLogs,
         missedCalls: totalLogs,
       },
-      logs: account.logs,
+      logs: decryptedLogs,
+      leads: decryptedLeads,
     });
   } catch (error: any) {
     console.error("Dashboard data fetch error:", error);

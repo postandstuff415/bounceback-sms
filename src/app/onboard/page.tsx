@@ -7,6 +7,7 @@ export default function OnboardPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -88,6 +89,10 @@ export default function OnboardPage() {
       setError("Booking link must start with http:// or https://");
       return;
     }
+    if (!consentAccepted) {
+      setError("You must agree to the Terms of Service and Privacy Policy to proceed.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -132,7 +137,7 @@ export default function OnboardPage() {
           Set up your text-back system
         </h2>
         <p className="mt-2 text-center text-sm text-zinc-500">
-          $0 setup • First 100 leads free • Then $19.99/mo
+          14-day free trial • Then $19.99/mo • First-month refund guarantee
         </p>
       </div>
 
@@ -316,6 +321,33 @@ export default function OnboardPage() {
                   </div>
                 </div>
 
+                <div className="flex items-start pt-2">
+                  <div className="flex items-center h-5">
+                    <input
+                      id="consent"
+                      name="consent"
+                      type="checkbox"
+                      required
+                      checked={consentAccepted}
+                      onChange={(e) => setConsentAccepted(e.target.checked)}
+                      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-zinc-300 rounded"
+                    />
+                  </div>
+                  <div className="ml-3 text-xs leading-relaxed">
+                    <label htmlFor="consent" className="font-medium text-zinc-600">
+                      I agree to the{" "}
+                      <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                        Terms of Service
+                      </a>{" "}
+                      and{" "}
+                      <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+                        Privacy Policy
+                      </a>{" "}
+                      including the secure collection of caller telemetry and missed-call text-back processing.
+                    </label>
+                  </div>
+                </div>
+
                 <div className="flex gap-4 pt-2">
                   <button
                     type="button"
@@ -330,7 +362,7 @@ export default function OnboardPage() {
                     disabled={loading}
                     className="w-2/3 flex items-center justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px] disabled:opacity-50"
                   >
-                    {loading ? "Initializing..." : "Proceed to Checkout ($49/mo)"}
+                    {loading ? "Initializing..." : "Start 14-Day Free Trial ($19.99/mo)"}
                   </button>
                 </div>
               </div>

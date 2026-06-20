@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
+import Stripe from "stripe";
+import { encrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
+
+// Current policy versions — bump these when policies change
+export const PRIVACY_POLICY_VERSION = "2026-06-17-v1";
+export const TERMS_VERSION = "2026-06-17-v1";
+
+const isProduction = process.env.NODE_ENV === "production";
 
 // Helper to check if Stripe is properly configured
 const isStripeConfigured = () => {
@@ -35,12 +43,12 @@ function generateMockNumber(realPhoneNumber: string): string {
 
 export async function POST(req: Request) {
   try {
-    const isMockRequest = req.headers.get("x-mock-request") === "true";
+    const isMockRequest = req.headers.get("x-mock-request") === "true" && !isProduction;
     const rawBody = await req.text();
     let event: any;
 
-    if (!isStripeConfigured() || isMockRequest) {
-      // Bypassing signature verification for simulated mock runs
+    if ((!isStripeConfigured() || isMockRequest) && !isProduction) {
+      // Bypassing signature verification ONLY in non-production for simulated mock runs
       console.log("[Stripe Webhook] Processing in mock/simulation mode.");
       try {
         event = JSON.parse(rawBody);
@@ -48,15 +56,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Invalid JSON payload" }, { status: 400 });
       }
     } else {
-      // Real Stripe signature verification
+      // Real Stripe signature verification (REQUIRED in Production)
       const signature = req.headers.get("stripe-signature");
       if (!signature) {
         return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
       }
 
-      const Stripe = require("stripe");
       const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-        apiVersion: "2025-01-27.acacia",
+        apiVersion: "2025-01-27.acacia" as any,
       });
 
       try {
@@ -67,7 +74,7 @@ export async function POST(req: Request) {
         );
       } catch (err: any) {
         console.error("[Stripe Webhook] Signature verification failed:", err.message);
-        return NextResponse.json({ error: `Signature verification failed: ${err.message}` }, { status: 400 });
+        return NextResponse.json({ error: "Signature verification failed: " + err.message }, { status: 400 });
       }
     }
 
@@ -84,8 +91,7 @@ export async function POST(req: Request) {
       }
 
       const { businessName, email, realPhoneNumber, bookingLink, agencyId } = metadata;
-      const stripeCustomerId = session.customer as string;
-      const stripePriceId = session.line_items?.data?.[0]?.price?.id || null;
+      const stripeCustomerId = session.customer;
 
       if (!businessName || !email || !realPhoneNumber || !bookingLink) {
         console.error("[Stripe Webhook] Incomplete metadata in session:", metadata);
@@ -94,12 +100,16 @@ export async function POST(req: Request) {
 
       console.log(`[Stripe Webhook] Processing successful onboarding for: ${businessName} (${email})`);
 
-      // 1. Check if the user already has a provisioned Twilio number to avoid unnecessary purchase
+      // Check if the privacy and terms acceptance flags are in metadata
+      const privacyAccepted = metadata.privacyAccepted === "true";
+      const termsAccepted = metadata.termsAccepted === "true";
+
+      // 1. Check if the user already has a provisioned Twilio number
       const existingAccount = await prisma.account.findUnique({
-        where: { email },
+        where: { email: email.toLowerCase() },
       });
 
-      let assignedTwilioNum = existingAccount?.assignedTwilioNum || null;
+      let assignedTwilioNum = existingAccount ? existingAccount.assignedTwilioNum : null;
 
       // 2. Buy Twilio number if not already assigned
       if (!assignedTwilioNum) {
@@ -120,11 +130,10 @@ export async function POST(req: Request) {
                 limit: 1,
               });
             } catch (err) {
-              console.warn(`[Twilio Warning] No numbers found in area code: ${areaCode}, searching nation-wide`, err);
+              console.warn(`[Twilio Warning] No numbers found in area code: ${areaCode}`);
             }
 
             if (localNumbers.length === 0) {
-              // General search fallback
               localNumbers = await client.availablePhoneNumbers("US").local.list({
                 limit: 1,
               });
@@ -148,45 +157,58 @@ export async function POST(req: Request) {
               throw new Error("No phone numbers available to purchase in US.");
             }
           } catch (twilioErr: any) {
-            console.error("[Twilio Error] Number provisioning failed. Falling back to mock number:", twilioErr.message);
+            console.error("[Twilio Error] Number provisioning failed:", twilioErr.message);
             assignedTwilioNum = generateMockNumber(realPhoneNumber);
           }
         } else {
           console.log("[Twilio Webhook] Twilio keys not configured. Falling back to mock number.");
           assignedTwilioNum = generateMockNumber(realPhoneNumber);
         }
-      } else {
-        console.log(`[Stripe Webhook] Account ${email} already has provisioned number: ${assignedTwilioNum}`);
       }
 
-      // 3. Upsert Account record to database
-      console.log(`[Database Upsert] Saving account record for: ${email}`);
-      const updatedAccount = await prisma.account.upsert({
-        where: { email },
+      // 3. Upsert Account record to database with policy version tracking
+      const now = new Date();
+      await prisma.account.upsert({
+        where: { email: email.toLowerCase() },
         update: {
           businessName,
-          realPhoneNumber,
+          realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
           bookingLink,
           stripeCustomerId,
-          stripePriceId,
           subscriptionStatus: "active",
           agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          // Record privacy/terms acceptance with version tracking
+          ...(privacyAccepted ? {
+            privacyAccepted: true,
+            privacyAcceptedAt: existingAccount?.privacyAcceptedAt || now,
+            privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+          } : {}),
+          ...(termsAccepted ? {
+            termsAccepted: true,
+            termsAcceptedAt: existingAccount?.termsAcceptedAt || now,
+            termsVersion: TERMS_VERSION,
+          } : {}),
         },
         create: {
-          email,
+          email: email.toLowerCase(),
           businessName,
-          realPhoneNumber,
+          realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
           bookingLink,
           stripeCustomerId,
-          stripePriceId,
           subscriptionStatus: "active",
           agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          privacyAccepted,
+          privacyAcceptedAt: privacyAccepted ? now : null,
+          privacyPolicyVersion: privacyAccepted ? PRIVACY_POLICY_VERSION : null,
+          termsAccepted,
+          termsAcceptedAt: termsAccepted ? now : null,
+          termsVersion: termsAccepted ? TERMS_VERSION : null,
         },
       });
 
-      console.log(`[Database Success] Account ${updatedAccount.id} created/updated with Twilio number ${assignedTwilioNum}`);
+      console.log(`[Database Success] Account ${email} created/updated with Twilio number ${assignedTwilioNum}`);
     }
 
     return NextResponse.json({ received: true });
