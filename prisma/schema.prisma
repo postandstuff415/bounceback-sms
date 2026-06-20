@@ -83,6 +83,13 @@ enum DispatchStatus {
   FAILED
 }
 
+enum LeadStatus {
+  NEW
+  QUOTED
+  BOOKED
+  LOST
+}
+
 model IntakeTicket {
   id              String         @id @default(uuid())
   accountId       String
@@ -94,12 +101,28 @@ model IntakeTicket {
   computedUrgency UrgencyLevel   @default(LOW) // Rated by AI
   isBooked        Boolean        @default(false)
   dispatchStatus  DispatchStatus @default(PENDING)
+  status          LeadStatus     @default(NEW)
+  notes           String?
+  activities      LeadActivity[]
   leadTokens      LeadToken[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   @@index([accountId])
 }
+
+model LeadActivity {
+  id           String       @id @default(uuid())
+  ticketId     String
+  ticket       IntakeTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  activityType String       // e.g. "CREATED", "SMS_SENT", "STATUS_CHANGED", "NOTE_ADDED"
+  content      String
+  createdAt    DateTime     @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
 
 enum EmailStatus {
   PENDING

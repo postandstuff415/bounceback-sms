@@ -7,11 +7,14 @@ const apiPath = path.join(projectRoot, 'src', 'app', 'api');
 const backupPath = path.join(projectRoot, 'api-backup');
 const intakePath = path.join(projectRoot, 'src', 'app', 'intake');
 const intakeBackupPath = path.join(projectRoot, 'intake-backup');
+const leadsPath = path.join(projectRoot, 'src', 'app', 'leads');
+const leadsBackupPath = path.join(projectRoot, 'leads-backup');
 
 console.log('Starting mobile static build pipeline...');
 
 let apiMoved = false;
 let intakeMoved = false;
+let leadsMoved = false;
 
 try {
   // 1. Move src/app/api to api-backup
@@ -30,6 +33,15 @@ try {
     intakeMoved = true;
   } else {
     console.log('Intake routes directory not found, skipping move.');
+  }
+
+  // 1c. Move src/app/leads to leads-backup to avoid dynamic static-export compilation issues
+  if (fs.existsSync(leadsPath)) {
+    console.log(`Temporarily moving leads routes from ${leadsPath} to ${leadsBackupPath}...`);
+    fs.renameSync(leadsPath, leadsBackupPath);
+    leadsMoved = true;
+  } else {
+    console.log('Leads routes directory not found, skipping move.');
   }
 
   // 2. Run next build with EXPORT_MODE=true
@@ -57,5 +69,10 @@ try {
   if (intakeMoved && fs.existsSync(intakeBackupPath)) {
     console.log(`Restoring intake routes from ${intakeBackupPath} to ${intakePath}...`);
     fs.renameSync(intakeBackupPath, intakePath);
+  }
+  // 4c. Restore src/app/leads
+  if (leadsMoved && fs.existsSync(leadsBackupPath)) {
+    console.log(`Restoring leads routes from ${leadsBackupPath} to ${leadsPath}...`);
+    fs.renameSync(leadsBackupPath, leadsPath);
   }
 }

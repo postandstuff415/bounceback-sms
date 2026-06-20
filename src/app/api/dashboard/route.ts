@@ -36,6 +36,18 @@ export async function GET(req: Request) {
             timestamp: "desc",
           },
         },
+        intakeTickets: {
+          include: {
+            activities: {
+              orderBy: {
+                createdAt: "asc",
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
       },
     });
 
@@ -53,6 +65,11 @@ export async function GET(req: Request) {
     const decryptedLogs = account.logs.map((log) => ({
       ...log,
       callerNumber: decrypt(log.callerNumber),
+    }));
+
+    const decryptedLeads = account.intakeTickets.map((ticket) => ({
+      ...ticket,
+      customerPhone: decrypt(ticket.customerPhone),
     }));
 
     return NextResponse.json({
@@ -73,6 +90,7 @@ export async function GET(req: Request) {
         missedCalls: totalLogs,
       },
       logs: decryptedLogs,
+      leads: decryptedLeads,
     });
   } catch (error: any) {
     console.error("Dashboard data fetch error:", error);

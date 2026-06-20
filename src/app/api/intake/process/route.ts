@@ -86,6 +86,22 @@ Respond ONLY with a JSON object in this format:
       },
     });
 
+    // Create Initial Lead Activities for the activity timeline
+    await prisma.leadActivity.createMany({
+      data: [
+        {
+          ticketId: newTicket.id,
+          activityType: "CREATED",
+          content: "Lead successfully generated via AI FrontDesk Intake.",
+        },
+        {
+          ticketId: newTicket.id,
+          activityType: "SMS_SENT",
+          content: "Automated alert notification generated and dispatched.",
+        }
+      ]
+    });
+
     // Notify the business owner about the new lead
     const decryptedRealNumber = decrypt(account.realPhoneNumber);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
