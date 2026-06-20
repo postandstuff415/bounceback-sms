@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
+import { encrypt } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,29 @@ async function firePushNotification(account: any, callerNumber: string) {
 }
 
 export async function POST(req: Request) {
+  // 1. Twilio Request Validation
+  const signature = req.headers.get("x-twilio-signature") || "";
+  const { searchParams: urlSearchParams } = new URL(req.url);
+  const accountIdForValidation = urlSearchParams.get("accountId");
+  const url = process.env.NEXT_PUBLIC_APP_URL + "/api/webhooks/twilio-status?accountId=" + accountIdForValidation;
+  
+  const authToken = process.env.TWILIO_AUTH_TOKEN || "";
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction && authToken && signature) {
+    const clonedReq = req.clone();
+    const formData = await clonedReq.formData();
+    const params: Record<string, string> = {};
+    formData.forEach((value, key) => {
+      params[key] = value.toString();
+    });
+
+    const isValid = twilio.validateRequest(authToken, signature, url, params);
+    if (!isValid) {
+      console.error("[Twilio Status Webhook] Invalid signature. Access denied.");
+      return new NextResponse("Invalid signature", { status: 403 });
+    }
+  }
   try {
     const { searchParams } = new URL(req.url);
     const accountId = searchParams.get("accountId");
@@ -171,17 +195,20 @@ export async function POST(req: Request) {
     // A missed call saves $60 in revenue (if SMS was sent), whereas a completed call saves $0.
     const revenueSaved = wasMissed && smsSent ? 60.0 : 0.0;
 
+    // Encrypt the caller's phone number before storing (PII protection)
+    const encryptedCallerNumber = encrypt(from);
+
     await prisma.callLog.create({
       data: {
         accountId: account.id,
-        callerNumber: from || "Unknown",
+        callerNumber: encryptedCallerNumber,
         callStatus: finalStatus,
         smsSent: smsSent,
         revenueSavedEst: revenueSaved,
       },
     });
 
-    console.log(`[Twilio Status Webhook] Logged CallLog entry. Account ID: ${account.id}, Caller: ${from}, Status: ${finalStatus}, SMSSent: ${smsSent}, RevenueSaved: $${revenueSaved}`);
+    console.log(`[Twilio Status Webhook] Logged CallLog entry. Account ID: ${account.id}, EncryptedCaller: yes, Status: ${finalStatus}, SMSSent: ${smsSent}, RevenueSaved: $${revenueSaved}`);
 
     // Return blank TwiML to end execution gracefully
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
