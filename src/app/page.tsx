@@ -44,8 +44,43 @@ interface Lead {
   createdAt: string;
 }
 
+interface AgencySubAccount {
+  id: string;
+  email: string;
+  businessName: string;
+  realPhoneNumber: string;
+  assignedTwilioNum: string | null;
+  bookingLink: string;
+  subscriptionStatus: string;
+  aiFrontDeskEnabled: boolean;
+  createdAt: string;
+  metrics: {
+    recoveryRate: number;
+    totalRevenueSaved: number;
+    leadsRescued: number;
+    missedCalls: number;
+  };
+}
+
+interface AgencyData {
+  agency: {
+    id: string;
+    businessName: string;
+    email: string;
+    customLogoUrl: string | null;
+    customBrandColor: string | null;
+  };
+  subAccounts: AgencySubAccount[];
+  metrics: {
+    recoveryRate: number;
+    totalRevenueSaved: number;
+    leadsRescued: number;
+    missedCalls: number;
+  };
+}
+
 interface DashboardData {
-  account: AccountDetails;
+  account: AccountDetails & { role?: string };
   metrics: {
     recoveryRate: number;
     totalRevenueSaved: number;
@@ -54,6 +89,11 @@ interface DashboardData {
   };
   logs: CallLog[];
   leads: Lead[];
+  whiteLabel?: {
+    logoUrl: string | null;
+    brandColor: string | null;
+    agencyName: string;
+  } | null;
 }
 
 export default function Home() {
@@ -84,6 +124,30 @@ export default function Home() {
   const [gdprMessage, setGdprMessage] = useState<string | null>(null);
   const [gdprError, setGdprError] = useState<string | null>(null);
   const [gdprLoading, setGdprLoading] = useState(false);
+
+  // Agency state variables
+  const [agencyData, setAgencyData] = useState<AgencyData | null>(null);
+  const [agencyLoading, setAgencyLoading] = useState(false);
+  const [agencyError, setAgencyError] = useState<string | null>(null);
+
+  // White-label settings state
+  const [logoUrlInput, setLogoUrlInput] = useState("");
+  const [brandColorInput, setBrandColorInput] = useState("");
+  const [isSavingWhiteLabel, setIsSavingWhiteLabel] = useState(false);
+
+  // Add sub-account modal state
+  const [isAddSubModalOpen, setIsAddSubModalOpen] = useState(false);
+  const [newSubEmail, setNewSubEmail] = useState("");
+  const [newSubName, setNewSubName] = useState("");
+  const [newSubPhone, setNewSubPhone] = useState("");
+  const [newSubBooking, setNewSubBooking] = useState("");
+  const [addSubError, setAddSubError] = useState<string | null>(null);
+  const [addSubLoading, setAddSubLoading] = useState(false);
+
+  // Impersonating sub-account dashboard state
+  const [selectedSubAccountEmail, setSelectedSubAccountEmail] = useState<string | null>(null);
+  const [subAccountDashboardData, setSubAccountDashboardData] = useState<DashboardData | null>(null);
+  const [subAccountDashboardLoading, setSubAccountDashboardLoading] = useState(false);
 
   // ROI Calculator states
   const [avgJobVal, setAvgJobVal] = useState(150);
@@ -185,6 +249,205 @@ export default function Home() {
       setIsRefreshing(false);
     }
   };
+
+  // Fetch agency data when user role is AGENCY
+  useEffect(() => {
+    if (!dashboardData || dashboardData.account.role !== "AGENCY" || !authToken) return;
+
+    const fetchAgencyData = async () => {
+      setAgencyLoading(true);
+      setAgencyError(null);
+      try {
+        const res = await fetch("/api/agency/dashboard", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${authToken}`,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to load agency dashboard");
+        }
+        setAgencyData(data);
+        // Initialize input fields with fetched white-label configuration
+        setLogoUrlInput(data.agency.customLogoUrl || "");
+        setBrandColorInput(data.agency.customBrandColor || "#10B981");
+      } catch (err: any) {
+        console.error(err);
+        setAgencyError(err.message || "Failed to load agency metrics.");
+      } finally {
+        setAgencyLoading(false);
+      }
+    };
+
+    fetchAgencyData();
+  }, [dashboardData, authToken]);
+
+  // Save white-label settings
+  const handleSaveWhiteLabel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authToken) return;
+
+    setIsSavingWhiteLabel(true);
+    try {
+      const res = await fetch("/api/agency/white-label", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          customLogoUrl: logoUrlInput.trim() || null,
+          customBrandColor: brandColorInput.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to save branding configuration.");
+      } else {
+        alert("White-label branding settings updated!");
+        // Refresh agency data
+        if (agencyData) {
+          setAgencyData({
+            ...agencyData,
+            agency: {
+              ...agencyData.agency,
+              customLogoUrl: data.whiteLabel.customLogoUrl,
+              customBrandColor: data.whiteLabel.customBrandColor,
+            },
+          });
+        }
+        // Force refresh local dashboard to update logo/color in active session
+        handleRefresh();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("System error saving branding configuration.");
+    } finally {
+      setIsSavingWhiteLabel(false);
+    }
+  };
+
+  // Add a new client sub-account
+  const handleAddSubAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authToken) return;
+
+    if (!newSubEmail || !newSubName || !newSubPhone || !newSubBooking) {
+      setAddSubError("Please fill out all required fields.");
+      return;
+    }
+
+    setAddSubLoading(true);
+    setAddSubError(null);
+    try {
+      const res = await fetch("/api/agency/sub-accounts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          email: newSubEmail.trim(),
+          businessName: newSubName.trim(),
+          realPhoneNumber: newSubPhone.trim(),
+          bookingLink: newSubBooking.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAddSubError(data.error || "Failed to create client sub-account.");
+      } else {
+        alert("Client sub-account provisioned successfully!");
+        setIsAddSubModalOpen(false);
+        // Reset form fields
+        setNewSubEmail("");
+        setNewSubName("");
+        setNewSubPhone("");
+        setNewSubBooking("");
+        // Refresh agency data
+        const refreshRes = await fetch("/api/agency/dashboard", {
+          headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        const refreshData = await refreshRes.json();
+        if (refreshRes.ok) {
+          setAgencyData(refreshData);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setAddSubError("System error provisioning client sub-account.");
+    } finally {
+      setAddSubLoading(false);
+    }
+  };
+
+  // Delete sub-account
+  const handleDeleteSubAccount = async (subId: string, subName: string) => {
+    if (!confirm(`Are you sure you want to permanently delete client sub-account "${subName}"? All lead history and logs will be lost forever.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/agency/sub-accounts?id=${subId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to delete sub-account");
+      } else {
+        alert(data.message || "Sub-account deleted.");
+        // Refresh agency dashboard
+        const refreshRes = await fetch("/api/agency/dashboard", {
+          headers: { "Authorization": `Bearer ${authToken}` }
+        });
+        const refreshData = await refreshRes.json();
+        if (refreshRes.ok) {
+          setAgencyData(refreshData);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      alert("System error deleting sub-account.");
+    }
+  };
+
+  // Fetch impersonated sub-account dashboard details
+  useEffect(() => {
+    if (!selectedSubAccountEmail || !authToken) {
+      setSubAccountDashboardData(null);
+      return;
+    }
+
+    const fetchSubAccountDashboard = async () => {
+      setSubAccountDashboardLoading(true);
+      try {
+        const res = await fetch(`/api/dashboard?email=${encodeURIComponent(selectedSubAccountEmail)}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${authToken}`,
+          },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setSubAccountDashboardData(data);
+        } else {
+          alert(data.error || "Failed to load sub-account dashboard");
+          setSelectedSubAccountEmail(null);
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Failed to load sub-account dashboard due to network error.");
+        setSelectedSubAccountEmail(null);
+      } finally {
+        setSubAccountDashboardLoading(false);
+      }
+    };
+
+    fetchSubAccountDashboard();
+  }, [selectedSubAccountEmail, authToken]);
 
   // Export leads to JSON/CSV for follow-up marketing
   const handleExport = (format: 'json' | 'csv') => {
@@ -1380,7 +1643,7 @@ export default function Home() {
             <div className="p-8 bg-slate-900/30 border border-slate-900 hover:border-slate-800 rounded-3xl transition-all flex flex-col justify-between space-y-6">
               <div>
                 <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl mb-6 text-emerald-400">
-                  📊
+                  ����
                 </div>
                 <h4 className="text-xl font-bold text-white mb-3">Centralized Tracking Dashboard</h4>
                 <p className="text-slate-400 leading-relaxed text-sm">
