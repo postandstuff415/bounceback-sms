@@ -72,6 +72,34 @@ export async function GET(req: Request) {
       customerPhone: decrypt(ticket.customerPhone),
     }));
 
+    // Fetch parent agency or self white-label details
+    let whiteLabel = null;
+    if (account.agencyId) {
+      const agency = await prisma.account.findUnique({
+        where: { id: account.agencyId },
+        select: {
+          customLogoUrl: true,
+          customBrandColor: true,
+          businessName: true,
+        },
+      });
+      if (agency && (agency.customLogoUrl || agency.customBrandColor)) {
+        whiteLabel = {
+          logoUrl: agency.customLogoUrl,
+          brandColor: agency.customBrandColor,
+          agencyName: agency.businessName,
+        };
+      }
+    } else if (account.role === "AGENCY") {
+      if (account.customLogoUrl || account.customBrandColor) {
+        whiteLabel = {
+          logoUrl: account.customLogoUrl,
+          brandColor: account.customBrandColor,
+          agencyName: account.businessName,
+        };
+      }
+    }
+
     return NextResponse.json({
       success: true,
       account: {
@@ -82,6 +110,7 @@ export async function GET(req: Request) {
         assignedTwilioNum: account.assignedTwilioNum,
         bookingLink: account.bookingLink,
         subscriptionStatus: account.subscriptionStatus,
+        role: account.role,
       },
       metrics: {
         recoveryRate,
@@ -91,6 +120,7 @@ export async function GET(req: Request) {
       },
       logs: decryptedLogs,
       leads: decryptedLeads,
+      whiteLabel,
     });
   } catch (error: any) {
     console.error("Dashboard data fetch error:", error);

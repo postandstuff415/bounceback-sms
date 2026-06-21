@@ -32,6 +32,9 @@ model Account {
   subAccounts             Account[] @relation("AgencyToSubAccount")
   aiFrontDeskEnabled      Boolean   @default(false)
   aiFrontDeskPriceMonthly Float     @default(19.95)
+  customLogoUrl           String?
+  customBrandColor         String?
+  smsTemplate             String?   @default("Hi, we missed your call. Here is our booking link to secure your spot: {booking_link}")
   intakeTickets           IntakeTicket[]
   
   // Privacy & Terms acceptance tracking with versioning
