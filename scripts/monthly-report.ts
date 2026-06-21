@@ -78,7 +78,7 @@ async function runMonthlyReport() {
     console.log(`  - Estimated Business Pipeline Saved: $${totalRevenueSaved.toFixed(2)}`);
 
     // 3. Construct the SMS report payload
-    const smsBody = `BounceBack Report: This month we saved you ${totalMissed} missed calls and recovered an estimated $${totalRevenueSaved.toFixed(2)} in business pipeline. Your system cost: $49.00.`;
+    const smsBody = `BounceBack Report: This month we saved you ${totalMissed} missed calls and recovered an estimated ${totalRevenueSaved.toFixed(2)} in business pipeline. Your system cost: $29.99.`;
 
     console.log(`  - SMS Body: "${smsBody}"`);
 

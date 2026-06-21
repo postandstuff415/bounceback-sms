@@ -159,7 +159,7 @@ export async function POST(req: Request) {
     if (wasMissed) {
       console.log(`[Twilio Status Webhook] Missed call intercepted for ${account.businessName}! Triggering SMS back to caller: ${from}`);
 
-      const messageBody = `Hi! This is ${account.businessName}. Sorry we missed your call. We want to make sure you're taken care of! Please book a time directly with us here: ${account.bookingLink}`;
+      const messageBody = `Stop losing jobs to competitors for $29.99/mo`;
 
       if (isTwilioConfigured()) {
         try {

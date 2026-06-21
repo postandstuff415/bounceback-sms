@@ -31,7 +31,7 @@ model Account {
   agency                  Account?  @relation("AgencyToSubAccount", fields: [agencyId], references: [id])
   subAccounts             Account[] @relation("AgencyToSubAccount")
   aiFrontDeskEnabled      Boolean   @default(false)
-  aiFrontDeskPriceMonthly Float     @default(19.95)
+  aiFrontDeskPriceMonthly Float     @default(29.99)
   customLogoUrl           String?
   customBrandColor         String?
   smsTemplate             String?   @default("Hi, we missed your call. Here is our booking link to secure your spot: {booking_link}")
