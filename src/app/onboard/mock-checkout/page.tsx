@@ -104,7 +104,7 @@ function MockCheckoutForm() {
 
           {/* Pricing Info */}
           <div className="mt-8 flex items-baseline text-zinc-950">
-            <span className="text-5xl font-extrabold tracking-tight">$19.99</span>
+            <span className="text-5xl font-extrabold tracking-tight">$29.99</span>
             <span className="ml-1 text-xl font-semibold text-zinc-500">/ month</span>
           </div>
 
@@ -246,7 +246,7 @@ function MockCheckoutForm() {
             </button>
 
             <p className="text-center text-xs text-zinc-500 mt-4">
-              By clicking Pay, you authorize Stripe (simulated) to charge your payment method for $19.99/mo until you cancel.
+              By clicking Pay, you authorize Stripe (simulated) to charge your payment method for $29.99/mo until you cancel.
             </p>
           </form>
         </div>
