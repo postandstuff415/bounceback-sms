@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const session = authenticateRequest(req);
+    const session = await authenticateRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }

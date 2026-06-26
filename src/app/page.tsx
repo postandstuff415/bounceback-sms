@@ -105,6 +105,7 @@ export default function Home() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginInfo, setLoginInfo] = useState<string | null>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Dashboard states
@@ -161,6 +162,26 @@ export default function Home() {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // 1. Magic-link callback: /api/auth/verify redirects here with the
+        // freshly-minted session token in the URL. Capture it, persist it,
+        // then strip it from the address bar.
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const urlToken = params.get("authToken");
+          const urlEmail = params.get("email");
+          if (urlToken && urlEmail) {
+            await Preferences.set({ key: "userEmail", value: urlEmail });
+            await Preferences.set({ key: "authToken", value: urlToken });
+            localStorage.setItem("userEmail", urlEmail);
+            localStorage.setItem("authToken", urlToken);
+            setUserEmail(urlEmail);
+            setAuthToken(urlToken);
+            window.history.replaceState({}, "", window.location.pathname);
+            setCheckingSession(false);
+            return;
+          }
+        }
+
         const emailPref = await Preferences.get({ key: "userEmail" });
         const tokenPref = await Preferences.get({ key: "authToken" });
 
@@ -566,6 +587,7 @@ export default function Home() {
 
     setLoginLoading(true);
     setLoginError(null);
+    setLoginInfo(null);
 
     try {
       const res = await fetch("/api/auth/login", {
@@ -582,7 +604,16 @@ export default function Home() {
         throw new Error(data.error || "Login verification failed");
       }
 
-      // Store in preferences & state
+      // Production: a secure sign-in link was emailed. No token is returned —
+      // the session is established when the user clicks the link.
+      if (data.magicLink || !data.token) {
+        setLoginInfo(
+          data.message || "Check your email for a secure sign-in link."
+        );
+        return;
+      }
+
+      // Non-production / instant login: store session immediately.
       await Preferences.set({ key: "userEmail", value: data.account.email });
       await Preferences.set({ key: "authToken", value: data.token });
       if (typeof window !== "undefined") {
@@ -615,6 +646,14 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error);
+      }
+      // Quick demo relies on instant login (non-production). If the server is
+      // in magic-link mode, there's no token to store — inform the user.
+      if (data.magicLink || !data.token) {
+        setLoginInfo(
+          data.message || "Check your email for a secure sign-in link."
+        );
+        return;
       }
       await Preferences.set({ key: "userEmail", value: data.account.email });
       await Preferences.set({ key: "authToken", value: data.token });
@@ -857,7 +896,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xxs uppercase tracking-widest text-emerald-400 font-extrabold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
-                $19.99/mo Plan
+                $29.99/mo Plan
               </span>
             </div>
           </div>
@@ -1305,7 +1344,7 @@ export default function Home() {
   const estimatedRecoveredCalls = Math.round(monthlyMissedCalls * 0.70);
   const estimatedBookedJobs = Math.round(estimatedRecoveredCalls * (closeRate / 100));
   const estimatedSavedRevenue = estimatedBookedJobs * avgJobVal;
-  const estimatedRoiMultiplier = estimatedSavedRevenue > 0 ? Math.round(estimatedSavedRevenue / 19.99) : 0;
+  const estimatedRoiMultiplier = estimatedSavedRevenue > 0 ? Math.round(estimatedSavedRevenue / 29.99) : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans selection:bg-emerald-500/30 overflow-x-hidden relative">
@@ -1753,9 +1792,19 @@ export default function Home() {
               The Growth Plan
             </span>
             
-            <div className="mb-10">
+            <div className="mb-8">
               <div className="text-5xl md:text-6xl font-black text-white mb-2">14 Days Free</div>
-              <div className="text-lg text-slate-300 font-medium">then just $19.99 / month</div>
+              <div className="text-lg text-slate-300 font-medium">then just $29.99 / month</div>
+              <div className="mt-3 text-2xl md:text-3xl font-black text-emerald-400">Exactly $1.00 a day</div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 mb-10">
+              <span className="text-xs font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full backdrop-blur-sm">
+                ✓ 14-Day Free Trial
+              </span>
+              <span className="text-xs font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-full backdrop-blur-sm">
+                ✓ 30-Day &lsquo;Fresh Lead&rsquo; Refund Guarantee
+              </span>
             </div>
 
             <ul className="text-left space-y-4 mb-12 max-w-sm mx-auto">
@@ -1975,6 +2024,12 @@ export default function Home() {
             {loginError && (
               <div className="mb-4 bg-red-950/40 border border-red-800 text-red-200 text-xs p-3.5 rounded-xl">
                 {loginError}
+              </div>
+            )}
+
+            {loginInfo && (
+              <div className="mb-4 bg-emerald-950/40 border border-emerald-800 text-emerald-200 text-xs p-3.5 rounded-xl">
+                ✉️ {loginInfo}
               </div>
             )}
 
