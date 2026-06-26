@@ -211,6 +211,60 @@ export async function POST(req: Request) {
       console.log(`[Database Success] Account ${email} created/updated with Twilio number ${assignedTwilioNum}`);
     }
 
+    // Subscription lifecycle — keep account access in sync with billing state.
+    // Maps a Stripe customer to our Account via stripeCustomerId and updates
+    // subscriptionStatus so cancellations / failed payments actually cut off access.
+    else if (
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted"
+    ) {
+      const subscription = event.data.object;
+      const customerId = subscription.customer;
+
+      // Normalize Stripe status -> our internal status vocabulary
+      // (active, trialing, past_due, inactive)
+      let status: string;
+      if (event.type === "customer.subscription.deleted") {
+        status = "inactive";
+      } else {
+        switch (subscription.status) {
+          case "active":
+            status = "active";
+            break;
+          case "trialing":
+            status = "trialing";
+            break;
+          case "past_due":
+            status = "past_due";
+            break;
+          // canceled, unpaid, incomplete, incomplete_expired, paused -> no access
+          default:
+            status = "inactive";
+        }
+      }
+
+      const result = await prisma.account.updateMany({
+        where: { stripeCustomerId: customerId },
+        data: { subscriptionStatus: status },
+      });
+      console.log(
+        `[Stripe Webhook] ${event.type}: set subscriptionStatus="${status}" for customer ${customerId} (${result.count} account(s) updated).`
+      );
+    }
+
+    // A renewal payment failed — flag the account as past_due until it recovers.
+    else if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object;
+      const customerId = invoice.customer;
+      const result = await prisma.account.updateMany({
+        where: { stripeCustomerId: customerId },
+        data: { subscriptionStatus: "past_due" },
+      });
+      console.log(
+        `[Stripe Webhook] invoice.payment_failed: set subscriptionStatus="past_due" for customer ${customerId} (${result.count} account(s) updated).`
+      );
+    }
+
     return NextResponse.json({ received: true });
   } catch (error: any) {
     console.error("[Stripe Webhook Error] Fatal error in webhook:", error);

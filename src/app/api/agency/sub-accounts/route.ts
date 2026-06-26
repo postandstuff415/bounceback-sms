@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Create a new sub-account
 export async function POST(req: Request) {
   try {
-    const session = authenticateRequest(req);
+    const session = await authenticateRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
 // Delete a sub-account
 export async function DELETE(req: Request) {
   try {
-    const session = authenticateRequest(req);
+    const session = await authenticateRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }

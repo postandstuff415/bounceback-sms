@@ -1,54 +1,43 @@
 import crypto from "node:crypto";
+import { prisma } from "@/lib/prisma";
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface Session {
   email: string;
   accountId: string;
-  createdAt: number;
-  expiresAt: number;
 }
 
-const sessionStore = new Map<string, Session>();
-
-// Clean expired sessions every 15 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of sessionStore.entries()) {
-    if (now > session.expiresAt) {
-      sessionStore.delete(token);
-    }
-  }
-}, 900000);
-
 /**
- * Create a session for a user account.
- * Returns a bearer token that can be used for subsequent API requests.
+ * Create a persistent session for a user account.
+ * Returns a bearer token used for subsequent API requests.
+ *
+ * Sessions are stored in the database (not in-memory) so they survive server
+ * restarts and work across serverless / multi-instance deployments.
  */
-export function createSession(email: string, accountId: string): string {
+export async function createSession(email: string, accountId: string): Promise<string> {
   const token = crypto.randomBytes(32).toString("hex");
-  const now = Date.now();
-  sessionStore.set(token, {
-    email,
-    accountId,
-    createdAt: now,
-    expiresAt: now + SESSION_DURATION_MS,
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+  await prisma.session.create({
+    data: { token, email, accountId, expiresAt },
   });
   return token;
 }
 
 /**
  * Validate a bearer token and return session data.
- * Returns null if invalid or expired.
+ * Returns null if invalid or expired (and prunes the expired row).
  */
-export function validateSession(token: string): Session | null {
-  const session = sessionStore.get(token);
+export async function validateSession(token: string): Promise<Session | null> {
+  const session = await prisma.session.findUnique({ where: { token } });
   if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    sessionStore.delete(token);
+
+  if (session.expiresAt.getTime() < Date.now()) {
+    await prisma.session.delete({ where: { token } }).catch(() => {});
     return null;
   }
-  return session;
+
+  return { email: session.email, accountId: session.accountId };
 }
 
 /**
@@ -63,7 +52,7 @@ export function getTokenFromRequest(req: Request): string | null {
 /**
  * Authenticate a request. Returns session data or null if unauthorized.
  */
-export function authenticateRequest(req: Request): Session | null {
+export async function authenticateRequest(req: Request): Promise<Session | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
   return validateSession(token);
@@ -72,8 +61,8 @@ export function authenticateRequest(req: Request): Session | null {
 /**
  * Destroy a session (logout).
  */
-export function destroySession(token: string): void {
-  sessionStore.delete(token);
+export async function destroySession(token: string): Promise<void> {
+  await prisma.session.delete({ where: { token } }).catch(() => {});
 }
 
 export type { Session };
