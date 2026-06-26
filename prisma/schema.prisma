@@ -152,3 +152,30 @@ model EmailHoldingTank {
   dispatchedFromInbox  String?
   createdAt            DateTime    @default(now())
 }
+
+// Persistent login sessions (replaces the old in-memory session store so
+// logins survive server restarts and work across serverless instances).
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  accountId String
+  email     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([accountId])
+}
+
+// One-time, short-lived tokens emailed for passwordless "magic link" sign-in.
+model LoginToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  accountId String
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+}
