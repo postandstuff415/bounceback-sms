@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
 import { encrypt } from "@/lib/encryption";
+import { getFcmMessaging } from "@/lib/firebase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -37,31 +38,35 @@ async function firePushNotification(account: any, callerNumber: string) {
   console.log(`   - Payload Title: "${payload.title}"`);
   console.log(`   - Payload Body: "${payload.body}"\n`);
 
-  const fcmServerKey = process.env.FCM_SERVER_KEY;
-  if (fcmServerKey && fcmServerKey !== "your_fcm_server_key_here") {
+  const messaging = getFcmMessaging();
+  if (messaging) {
     try {
-      console.log(`[FCM Push Dispatch] Sending push notification via Firebase Cloud Messaging...`);
-      await fetch(`https://fcm.googleapis.com/fcm/send`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `key=${fcmServerKey}`
+      console.log(`[FCM Push Dispatch] Sending push notification via Firebase Cloud Messaging (HTTP v1)...`);
+      // FCM v1 requires all `data` values to be strings.
+      const data: Record<string, string> = {
+        accountId: String(payload.data.accountId),
+        callerNumber: String(payload.data.callerNumber),
+        timestamp: String(payload.data.timestamp),
+      };
+      await messaging.send({
+        topic: "all",
+        notification: {
+          title: payload.title,
+          body: payload.body,
         },
-        body: JSON.stringify({
-          to: "/topics/all",
-          notification: {
-            title: payload.title,
-            body: payload.body,
-            sound: "default"
-          },
-          data: payload.data
-        })
+        data,
+        android: {
+          notification: { sound: "default" },
+        },
+        apns: {
+          payload: { aps: { sound: "default" } },
+        },
       });
     } catch (pushErr: any) {
       console.error(`[FCM Push Dispatch Error] Failed to send FCM push:`, pushErr.message);
     }
   } else {
-    console.log(`[Mock FCM Push] (FCM_SERVER_KEY not configured) Push notification telemetry successfully logged to console.`);
+    console.log(`[Mock FCM Push] (FIREBASE_SERVICE_ACCOUNT_B64 not configured) Push notification telemetry successfully logged to console.`);
   }
 }
 
