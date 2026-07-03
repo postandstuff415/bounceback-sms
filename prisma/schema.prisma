@@ -48,6 +48,19 @@ model Account {
   createdAt               DateTime  @default(now())
   logs                    CallLog[]
   a2pRegistration         A2pRegistration?
+
+  // A2P 10DLC compliance registration fields
+  a2pLegalBusinessName    String?
+  a2pBusinessType         String?
+  a2pEinOrTaxId           String?
+  a2pWebsiteUrl           String?
+  a2pCampaignUseCase      String?
+  a2pSampleMessages       String?
+  a2pRegistrationStatus   String?   @default("unregistered")
+  a2pTwilioBrandSid       String?
+  a2pTwilioCampaignSid     String?
+  a2pPrivacyPolicyUrl     String?
+  a2pTermsOfServiceUrl    String?
 }
 
 model LeadToken {

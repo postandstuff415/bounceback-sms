@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { authenticateRequest } from "@/lib/auth";
-import { submitTwilioA2pRegistration } from "@/lib/twilio-a2p";
+import { registerA2PBrand } from "@/lib/twilio-a2p";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Validates whether a given string is a correctly formatted, complete absolute URL.
+ */
+function isValidUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export async function POST(req: Request) {
   try {
-    // 1. Authenticate Request
+    // 1. Authenticate Request using standard Session validation
     const session = authenticateRequest(req);
     if (!session) {
       return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -13,127 +27,118 @@ export async function POST(req: Request) {
 
     const accountId = session.accountId;
 
-    // 2. Parse and Validate Request Payload
+    // 2. Parse payload and support multiple potential input field mappings
     const body = await req.json();
-    const {
-      legalBusinessName,
-      ein,
-      businessType,
-      industry,
-      website,
-      country,
-      address,
-      contactFirstName,
-      contactLastName,
-      contactEmail,
-      contactPhone,
-      campaignDescription,
-      sampleMessage1,
-      sampleMessage2,
-    } = body;
 
-    // Validate presence of required compliance fields
-    const requiredFields = {
-      legalBusinessName,
-      ein,
-      businessType,
-      industry,
-      website,
-      country,
-      address,
-      contactFirstName,
-      contactLastName,
-      contactEmail,
-      contactPhone,
-      campaignDescription,
-      sampleMessage1,
-      sampleMessage2,
-    };
+    const legalBusinessName = body.a2pLegalBusinessName || body.legalBusinessName;
+    const businessType = body.a2pBusinessType || body.businessType;
+    const ein = body.a2pEinOrTaxId || body.ein;
+    const website = body.a2pWebsiteUrl || body.website;
+    const campaignUseCase = body.a2pCampaignUseCase || body.campaignUseCase || body.campaignDescription;
+    const sampleMessages = body.a2pSampleMessages || body.sampleMessages || [body.sampleMessage1, body.sampleMessage2].filter(Boolean).join("\n\n");
+    const privacyPolicyUrl = body.a2pPrivacyPolicyUrl || body.privacyPolicyUrl;
+    const termsOfServiceUrl = body.a2pTermsOfServiceUrl || body.termsOfServiceUrl;
 
-    for (const [key, value] of Object.entries(requiredFields)) {
-      if (!value || typeof value !== "string" || !value.trim()) {
+    // 3. Field validation
+    if (!legalBusinessName || typeof legalBusinessName !== "string" || !legalBusinessName.trim()) {
+      return NextResponse.json({ error: "Legal business name is required." }, { status: 400 });
+    }
+
+    if (!businessType || typeof businessType !== "string" || !businessType.trim()) {
+      return NextResponse.json({ error: "Business type is required." }, { status: 400 });
+    }
+
+    // EIN/Tax ID is mandatory for all non-Sole Proprietorships
+    const isSoleProp = businessType.trim().toLowerCase() === "sole proprietorship";
+    if (!isSoleProp) {
+      if (!ein || typeof ein !== "string" || !ein.trim()) {
         return NextResponse.json(
-          { error: `Missing or invalid required compliance field: ${key}` },
+          { error: `EIN/Tax ID is required for business type: ${businessType}` },
           { status: 400 }
         );
       }
     }
 
-    // 3. Save initial boilerplate/local registration to database (UPSERT pattern)
-    // This allows re-submitting or correcting compliance details
-    const registrationData = {
-      legalBusinessName: legalBusinessName.trim(),
-      ein: ein.trim(),
-      businessType: businessType.trim(),
-      industry: industry.trim(),
-      website: website.trim(),
-      country: country.trim(),
-      address: address.trim(),
-      contactFirstName: contactFirstName.trim(),
-      contactLastName: contactLastName.trim(),
-      contactEmail: contactEmail.trim(),
-      contactPhone: contactPhone.trim(),
-      campaignDescription: campaignDescription.trim(),
-      sampleMessage1: sampleMessage1.trim(),
-      sampleMessage2: sampleMessage2.trim(),
-      status: "PENDING",
-    };
-
-    const localRegistration = await prisma.a2pRegistration.upsert({
-      where: { accountId },
-      create: {
-        accountId,
-        ...registrationData,
-      },
-      update: {
-        ...registrationData,
-      },
-    });
-
-    // 4. Submit to Twilio Trust Hub Service Layer
-    const twilioResult = await submitTwilioA2pRegistration(accountId, {
-      legalBusinessName: localRegistration.legalBusinessName,
-      ein: localRegistration.ein,
-      businessType: localRegistration.businessType,
-      industry: localRegistration.industry,
-      website: localRegistration.website,
-      country: localRegistration.country,
-      address: localRegistration.address,
-      contactFirstName: localRegistration.contactFirstName,
-      contactLastName: localRegistration.contactLastName,
-      contactEmail: localRegistration.contactEmail,
-      contactPhone: localRegistration.contactPhone,
-      campaignDescription: localRegistration.campaignDescription,
-      sampleMessage1: localRegistration.sampleMessage1,
-      sampleMessage2: localRegistration.sampleMessage2,
-    });
-
-    if (!twilioResult.success) {
-      return NextResponse.json(
-        { error: twilioResult.message || "Failed to submit A2P details to messaging gateway." },
-        { status: 500 }
-      );
+    // Website validation (must be valid absolute URL format)
+    if (!website || typeof website !== "string" || !website.trim() || !isValidUrl(website.trim())) {
+      return NextResponse.json({ error: "A valid business website URL is required." }, { status: 400 });
     }
 
-    // 5. Update local database record with generated SIDs and vetting status from service
-    const finalRegistration = await prisma.a2pRegistration.update({
-      where: { accountId },
+    // Privacy Policy and Terms of Service URLs validation
+    if (!privacyPolicyUrl || typeof privacyPolicyUrl !== "string" || !privacyPolicyUrl.trim() || !isValidUrl(privacyPolicyUrl.trim())) {
+      return NextResponse.json({ error: "A valid absolute Privacy Policy URL is required." }, { status: 400 });
+    }
+
+    if (!termsOfServiceUrl || typeof termsOfServiceUrl !== "string" || !termsOfServiceUrl.trim() || !isValidUrl(termsOfServiceUrl.trim())) {
+      return NextResponse.json({ error: "A valid absolute Terms of Service URL is required." }, { status: 400 });
+    }
+
+    // 4. Update local Account database record, initializing status to 'pending'
+    const updatedAccount = await prisma.account.update({
+      where: { id: accountId },
       data: {
-        status: twilioResult.status,
-        // SIDs or external tracking could be appended to details, notes, or columns if needed
+        a2pLegalBusinessName: legalBusinessName.trim(),
+        a2pBusinessType: businessType.trim(),
+        a2pEinOrTaxId: ein ? ein.trim() : null,
+        a2pWebsiteUrl: website.trim(),
+        a2pCampaignUseCase: campaignUseCase ? campaignUseCase.trim() : null,
+        a2pSampleMessages: sampleMessages ? sampleMessages.trim() : null,
+        a2pPrivacyPolicyUrl: privacyPolicyUrl.trim(),
+        a2pTermsOfServiceUrl: termsOfServiceUrl.trim(),
+        a2pRegistrationStatus: "pending",
       },
     });
 
-    return NextResponse.json({
-      success: true,
-      registration: finalRegistration,
-      brandSid: twilioResult.brandSid,
-      campaignSid: twilioResult.campaignSid,
-      trustBundleSid: twilioResult.trustBundleSid,
-      message: twilioResult.message,
-    });
+    // 5. Trigger Twilio A2P Brand Registration Service
+    try {
+      const twilioResult = await registerA2PBrand(accountId, {
+        legalName: legalBusinessName.trim(),
+        businessType: businessType.trim(),
+        ein: ein ? ein.trim() : "",
+        websiteUrl: website.trim(),
+        campaignUseCase: campaignUseCase ? campaignUseCase.trim() : "",
+        sampleMessages: sampleMessages ? sampleMessages.trim() : "",
+        privacyPolicyUrl: privacyPolicyUrl.trim(),
+        termsOfServiceUrl: termsOfServiceUrl.trim(),
+      });
+
+      // Update local Account with generated SIDs on successful submit
+      const finalAccount = await prisma.account.update({
+        where: { id: accountId },
+        data: {
+          a2pRegistrationStatus: twilioResult.status || "pending",
+          a2pTwilioBrandSid: twilioResult.brandSid,
+          a2pTwilioCampaignSid: twilioResult.campaignSid,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        account: finalAccount,
+        brandSid: twilioResult.brandSid,
+        campaignSid: twilioResult.campaignSid,
+      });
+
+    } catch (twilioError: any) {
+      console.error("[POST /api/compliance/register] Twilio submission failed. Setting status to failed:", twilioError);
+
+      // Handle errors gracefully by saving 'failed' status to DB and returning fallback data
+      const failedAccount = await prisma.account.update({
+        where: { id: accountId },
+        data: {
+          a2pRegistrationStatus: "failed",
+        },
+      });
+
+      return NextResponse.json({
+        success: false,
+        error: "A2P compliance registration submission failed.",
+        account: failedAccount,
+      }, { status: 500 });
+    }
+
   } catch (error: any) {
-    console.error("[A2P Registration API Error]:", error);
+    console.error("[POST /api/compliance/register] Internal Error:", error);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
