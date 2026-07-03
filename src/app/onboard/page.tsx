@@ -137,7 +137,7 @@ export default function OnboardPage() {
           Set up your text-back system
         </h2>
         <p className="mt-2 text-center text-sm text-zinc-500">
-          14-day free trial • Then $19.99/mo • First-month refund guarantee
+          14-day free trial • Then $29.99/mo • First-month refund guarantee
         </p>
       </div>
 
@@ -362,7 +362,7 @@ export default function OnboardPage() {
                     disabled={loading}
                     className="w-2/3 flex items-center justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all h-[48px] disabled:opacity-50"
                   >
-                    {loading ? "Initializing..." : "Start 14-Day Free Trial ($19.99/mo)"}
+                    {loading ? "Initializing..." : "Start 14-Day Free Trial ($29.99/mo)"}
                   </button>
                 </div>
               </div>
