@@ -857,7 +857,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="text-xxs uppercase tracking-widest text-emerald-400 font-extrabold bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
-                $19.99/mo Plan
+                $29.99/mo Plan
               </span>
             </div>
           </div>
@@ -1305,7 +1305,7 @@ export default function Home() {
   const estimatedRecoveredCalls = Math.round(monthlyMissedCalls * 0.70);
   const estimatedBookedJobs = Math.round(estimatedRecoveredCalls * (closeRate / 100));
   const estimatedSavedRevenue = estimatedBookedJobs * avgJobVal;
-  const estimatedRoiMultiplier = estimatedSavedRevenue > 0 ? Math.round(estimatedSavedRevenue / 19.99) : 0;
+  const estimatedRoiMultiplier = estimatedSavedRevenue > 0 ? Math.round(estimatedSavedRevenue / 29.99) : 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 font-sans selection:bg-emerald-500/30 overflow-x-hidden relative">
@@ -1755,7 +1755,8 @@ export default function Home() {
             
             <div className="mb-10">
               <div className="text-5xl md:text-6xl font-black text-white mb-2">14 Days Free</div>
-              <div className="text-lg text-slate-300 font-medium">then just $19.99 / month</div>
+              <div className="text-lg text-slate-300 font-medium">then just $29.99 / month</div>
+              <div className="text-sm text-emerald-400 font-bold mt-2">Exactly $1.00 a day to protect your entire business line.</div>
             </div>
 
             <ul className="text-left space-y-4 mb-12 max-w-sm mx-auto">
