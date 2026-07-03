@@ -6,14 +6,41 @@ import { registerA2PBrand } from "@/lib/twilio-a2p";
 export const dynamic = "force-dynamic";
 
 /**
- * Validates whether a given string is a correctly formatted, complete absolute URL.
+ * Validates whether a given string is a correctly formatted HTTPS URL.
  */
-function isValidUrl(urlStr: string): boolean {
+function isValidHttpsUrl(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
-    return url.protocol === "http:" || url.protocol === "https:";
+    return url.protocol === "https:";
   } catch {
     return false;
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    const session = authenticateRequest(req);
+    if (!session) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
+    const accountId = session.accountId;
+
+    const registration = await prisma.a2pRegistration.findUnique({
+      where: { accountId: accountId },
+    });
+
+    if (!registration) {
+      return NextResponse.json({ status: "UNREGISTERED" });
+    }
+
+    return NextResponse.json({
+      status: registration.status,
+      registration,
+    });
+  } catch (error: any) {
+    console.error("[GET /api/compliance/register] Error:", error);
+    return NextResponse.json({ error: "Internal server error." }, { status: 500 });
   }
 }
 
@@ -37,7 +64,7 @@ export async function POST(req: Request) {
     const campaignUseCase = body.a2pCampaignUseCase || body.campaignUseCase || body.campaignDescription;
     const sampleMessages = body.a2pSampleMessages || body.sampleMessages || [body.sampleMessage1, body.sampleMessage2].filter(Boolean).join("\n\n");
     const privacyPolicyUrl = body.a2pPrivacyPolicyUrl || body.privacyPolicyUrl;
-    const termsOfServiceUrl = body.a2pTermsOfServiceUrl || body.termsOfServiceUrl;
+    const termsAndConditionsUrl = body.a2pTermsAndConditionsUrl || body.termsAndConditionsUrl || body.termsOfServiceUrl;
 
     // 3. Field validation
     if (!legalBusinessName || typeof legalBusinessName !== "string" || !legalBusinessName.trim()) {
@@ -59,22 +86,59 @@ export async function POST(req: Request) {
       }
     }
 
-    // Website validation (must be valid absolute URL format)
-    if (!website || typeof website !== "string" || !website.trim() || !isValidUrl(website.trim())) {
-      return NextResponse.json({ error: "A valid business website URL is required." }, { status: 400 });
+    // Website validation (must start with https://)
+    if (!website || typeof website !== "string" || !website.trim() || !isValidHttpsUrl(website.trim())) {
+      return NextResponse.json({ error: "A valid business website URL starting with https:// is required." }, { status: 400 });
     }
 
-    // Privacy Policy and Terms of Service URLs validation
-    if (!privacyPolicyUrl || typeof privacyPolicyUrl !== "string" || !privacyPolicyUrl.trim() || !isValidUrl(privacyPolicyUrl.trim())) {
-      return NextResponse.json({ error: "A valid absolute Privacy Policy URL is required." }, { status: 400 });
+    // Privacy Policy and Terms and Conditions validation (must start with https://)
+    if (!privacyPolicyUrl || typeof privacyPolicyUrl !== "string" || !privacyPolicyUrl.trim() || !isValidHttpsUrl(privacyPolicyUrl.trim())) {
+      return NextResponse.json({ error: "A valid Privacy Policy URL starting with https:// is required." }, { status: 400 });
     }
 
-    if (!termsOfServiceUrl || typeof termsOfServiceUrl !== "string" || !termsOfServiceUrl.trim() || !isValidUrl(termsOfServiceUrl.trim())) {
-      return NextResponse.json({ error: "A valid absolute Terms of Service URL is required." }, { status: 400 });
+    if (!termsAndConditionsUrl || typeof termsAndConditionsUrl !== "string" || !termsAndConditionsUrl.trim() || !isValidHttpsUrl(termsAndConditionsUrl.trim())) {
+      return NextResponse.json({ error: "A valid Terms and Conditions URL starting with https:// is required." }, { status: 400 });
     }
 
-    // 4. Update local Account database record, initializing status to 'pending'
-    const updatedAccount = await prisma.account.update({
+    // 4. Upsert into A2pRegistration model
+    await prisma.a2pRegistration.upsert({
+      where: { accountId: accountId },
+      update: {
+        legalBusinessName: legalBusinessName.trim(),
+        businessType: businessType.trim(),
+        ein: ein ? ein.trim() : "",
+        website: website.trim(),
+        campaignDescription: campaignUseCase ? campaignUseCase.trim() : "",
+        sampleMessage1: sampleMessages.trim(),
+        sampleMessage2: "",
+        privacyPolicyUrl: privacyPolicyUrl.trim(),
+        termsAndConditionsUrl: termsAndConditionsUrl.trim(),
+        status: "PENDING",
+      },
+      create: {
+        accountId: accountId,
+        legalBusinessName: legalBusinessName.trim(),
+        businessType: businessType.trim(),
+        ein: ein ? ein.trim() : "",
+        website: website.trim(),
+        industry: "Technology",
+        country: "US",
+        address: "123 Main St",
+        contactFirstName: "John",
+        contactLastName: "Doe",
+        contactEmail: "john@example.com",
+        contactPhone: "+15555555555",
+        campaignDescription: campaignUseCase ? campaignUseCase.trim() : "",
+        sampleMessage1: sampleMessages.trim(),
+        sampleMessage2: "",
+        privacyPolicyUrl: privacyPolicyUrl.trim(),
+        termsAndConditionsUrl: termsAndConditionsUrl.trim(),
+        status: "PENDING",
+      },
+    });
+
+    // Also update Account table for compatibility/fallback
+    await prisma.account.update({
       where: { id: accountId },
       data: {
         a2pLegalBusinessName: legalBusinessName.trim(),
@@ -84,58 +148,61 @@ export async function POST(req: Request) {
         a2pCampaignUseCase: campaignUseCase ? campaignUseCase.trim() : null,
         a2pSampleMessages: sampleMessages ? sampleMessages.trim() : null,
         a2pPrivacyPolicyUrl: privacyPolicyUrl.trim(),
-        a2pTermsOfServiceUrl: termsOfServiceUrl.trim(),
+        a2pTermsOfServiceUrl: termsAndConditionsUrl.trim(),
         a2pRegistrationStatus: "pending",
       },
     });
 
     // 5. Trigger Twilio A2P Brand Registration Service
-    try {
-      const twilioResult = await registerA2PBrand(accountId, {
-        legalName: legalBusinessName.trim(),
-        businessType: businessType.trim(),
-        ein: ein ? ein.trim() : "",
-        websiteUrl: website.trim(),
-        campaignUseCase: campaignUseCase ? campaignUseCase.trim() : "",
-        sampleMessages: sampleMessages ? sampleMessages.trim() : "",
-        privacyPolicyUrl: privacyPolicyUrl.trim(),
-        termsOfServiceUrl: termsOfServiceUrl.trim(),
-      });
+    const twilioResult = await registerA2PBrand(accountId, {
+      legalName: legalBusinessName.trim(),
+      businessType: businessType.trim(),
+      ein: ein ? ein.trim() : "",
+      websiteUrl: website.trim(),
+      campaignUseCase: campaignUseCase ? campaignUseCase.trim() : "",
+      sampleMessages: sampleMessages ? sampleMessages.trim() : "",
+      privacyPolicyUrl: privacyPolicyUrl.trim(),
+      termsAndConditionsUrl: termsAndConditionsUrl.trim(),
+    });
 
-      // Update local Account with generated SIDs on successful submit
-      const finalAccount = await prisma.account.update({
+    if (!twilioResult.success) {
+      // Handle failure gracefully
+      await prisma.a2pRegistration.update({
+        where: { accountId: accountId },
+        data: { status: "FAILED" },
+      });
+      await prisma.account.update({
         where: { id: accountId },
-        data: {
-          a2pRegistrationStatus: twilioResult.status || "pending",
-          a2pTwilioBrandSid: twilioResult.brandSid,
-          a2pTwilioCampaignSid: twilioResult.campaignSid,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        account: finalAccount,
-        brandSid: twilioResult.brandSid,
-        campaignSid: twilioResult.campaignSid,
-      });
-
-    } catch (twilioError: any) {
-      console.error("[POST /api/compliance/register] Twilio submission failed. Setting status to failed:", twilioError);
-
-      // Handle errors gracefully by saving 'failed' status to DB and returning fallback data
-      const failedAccount = await prisma.account.update({
-        where: { id: accountId },
-        data: {
-          a2pRegistrationStatus: "failed",
-        },
+        data: { a2pRegistrationStatus: "failed" },
       });
 
       return NextResponse.json({
         success: false,
-        error: "A2P compliance registration submission failed.",
-        account: failedAccount,
+        error: twilioResult.message || "Twilio compliance registration failed.",
       }, { status: 500 });
     }
+
+    // Update both tables with success and SIDs
+    await prisma.a2pRegistration.update({
+      where: { accountId: accountId },
+      data: { status: twilioResult.status || "PENDING" },
+    });
+
+    const finalAccount = await prisma.account.update({
+      where: { id: accountId },
+      data: {
+        a2pRegistrationStatus: twilioResult.status?.toLowerCase() || "pending",
+        a2pTwilioBrandSid: twilioResult.brandSid,
+        a2pTwilioCampaignSid: twilioResult.campaignSid,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      account: finalAccount,
+      brandSid: twilioResult.brandSid,
+      campaignSid: twilioResult.campaignSid,
+    });
 
   } catch (error: any) {
     console.error("[POST /api/compliance/register] Internal Error:", error);

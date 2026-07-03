@@ -186,6 +186,8 @@ model A2pRegistration {
   sampleMessage1      String
   sampleMessage2      String
   status              String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  privacyPolicyUrl      String   // Required by Twilio A2P 10DLC as of June 2026
+  termsAndConditionsUrl String   // Required by Twilio A2P 10DLC as of June 2026
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
