@@ -47,6 +47,7 @@ model Account {
   
   createdAt               DateTime  @default(now())
   logs                    CallLog[]
+  a2pRegistration         A2pRegistration?
 }
 
 model LeadToken {
@@ -151,4 +152,27 @@ model EmailHoldingTank {
   status               EmailStatus @default(PENDING)
   dispatchedFromInbox  String?
   createdAt            DateTime    @default(now())
+}
+
+model A2pRegistration {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  legalBusinessName   String
+  ein                 String
+  businessType        String
+  industry            String
+  website             String
+  country             String
+  address             String
+  contactFirstName    String
+  contactLastName     String
+  contactEmail        String
+  contactPhone        String
+  campaignDescription String
+  sampleMessage1      String
+  sampleMessage2      String
+  status              String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
