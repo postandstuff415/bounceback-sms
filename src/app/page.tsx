@@ -1420,7 +1420,7 @@ export default function Home() {
           </div>
 
           <p className="text-sm text-slate-500 font-semibold uppercase tracking-wider mb-12">
-            No setup fees. No credit card required to try. 100% Risk-Free.
+            Exactly $1.00 a day to protect your entire business line.
           </p>
 
           {/* Core Guarantee Callout Badge */}

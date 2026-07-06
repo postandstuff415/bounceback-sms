@@ -31,7 +31,7 @@ model Account {
   agency                  Account?  @relation("AgencyToSubAccount", fields: [agencyId], references: [id])
   subAccounts             Account[] @relation("AgencyToSubAccount")
   aiFrontDeskEnabled      Boolean   @default(false)
-  aiFrontDeskPriceMonthly Float     @default(19.95)
+  aiFrontDeskPriceMonthly Float     @default(29.99)
   customLogoUrl           String?
   customBrandColor         String?
   smsTemplate             String?   @default("Hi, we missed your call. Here is our booking link to secure your spot: {booking_link}")
@@ -47,6 +47,20 @@ model Account {
   
   createdAt               DateTime  @default(now())
   logs                    CallLog[]
+  a2pRegistration         A2pRegistration?
+
+  // A2P 10DLC compliance registration fields
+  a2pLegalBusinessName    String?
+  a2pBusinessType         String?
+  a2pEinOrTaxId           String?
+  a2pWebsiteUrl           String?
+  a2pCampaignUseCase      String?
+  a2pSampleMessages       String?
+  a2pRegistrationStatus   String?   @default("unregistered")
+  a2pTwilioBrandSid       String?
+  a2pTwilioCampaignSid     String?
+  a2pPrivacyPolicyUrl     String?
+  a2pTermsOfServiceUrl    String?
 }
 
 model LeadToken {
@@ -178,4 +192,29 @@ model LoginToken {
   createdAt DateTime  @default(now())
 
   @@index([token])
+}
+
+model A2pRegistration {
+  id                  String   @id @default(uuid())
+  accountId           String   @unique
+  account             Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  legalBusinessName   String
+  ein                 String
+  businessType        String
+  industry            String
+  website             String
+  country             String
+  address             String
+  contactFirstName    String
+  contactLastName     String
+  contactEmail        String
+  contactPhone        String
+  campaignDescription String
+  sampleMessage1      String
+  sampleMessage2      String
+  status              String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  privacyPolicyUrl      String   // Required by Twilio A2P 10DLC as of June 2026
+  termsAndConditionsUrl String   // Required by Twilio A2P 10DLC as of June 2026
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
