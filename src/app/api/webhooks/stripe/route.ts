@@ -90,6 +90,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Missing session metadata" }, { status: 400 });
       }
 
+      // SwarmLeads $9.99 add-on checkout — activate the entitlement and stop.
+      // Separate, self-contained path so it never touches onboarding/Twilio.
+      if (metadata.addon === "true" && metadata.email) {
+        const result = await prisma.account.updateMany({
+          where: { email: metadata.email.toLowerCase() },
+          data: { swarmleadsAddonActive: true, swarmleadsAddonSince: new Date() },
+        });
+        console.log(
+          `[Stripe Webhook] SwarmLeads add-on activated for ${metadata.email} (${result.count} account(s)).`
+        );
+        return NextResponse.json({ received: true });
+      }
+
       const { businessName, email, realPhoneNumber, bookingLink, agencyId } = metadata;
       const stripeCustomerId = session.customer;
 
@@ -99,6 +112,19 @@ export async function POST(req: Request) {
       }
 
       console.log(`[Stripe Webhook] Processing successful onboarding for: ${businessName} (${email})`);
+
+      // Resolve agencyId to a REAL agency Account id, else null. `agencyId` is a
+      // self-relation FK; a non-empty invalid value (e.g. stray form data) would
+      // otherwise blow up the upsert with a foreign-key violation.
+      let resolvedAgencyId: string | null = null;
+      if (agencyId && agencyId.trim() !== "") {
+        const agency = await prisma.account.findUnique({
+          where: { id: agencyId.trim() },
+          select: { id: true },
+        });
+        if (agency) resolvedAgencyId = agency.id;
+        else console.warn(`[Stripe Webhook] Ignoring unknown agencyId "${agencyId}" for ${email}.`);
+      }
 
       // Check if the privacy and terms acceptance flags are in metadata
       const privacyAccepted = metadata.privacyAccepted === "true";
@@ -177,7 +203,7 @@ export async function POST(req: Request) {
           bookingLink,
           stripeCustomerId,
           subscriptionStatus: "active",
-          agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          agencyId: resolvedAgencyId,
           // Record privacy/terms acceptance with version tracking
           ...(privacyAccepted ? {
             privacyAccepted: true,
@@ -198,7 +224,7 @@ export async function POST(req: Request) {
           bookingLink,
           stripeCustomerId,
           subscriptionStatus: "active",
-          agencyId: agencyId && agencyId.trim() !== "" ? agencyId : null,
+          agencyId: resolvedAgencyId,
           privacyAccepted,
           privacyAcceptedAt: privacyAccepted ? now : null,
           privacyPolicyVersion: privacyAccepted ? PRIVACY_POLICY_VERSION : null,

@@ -32,6 +32,11 @@ model Account {
   subAccounts             Account[] @relation("AgencyToSubAccount")
   aiFrontDeskEnabled      Boolean   @default(false)
   aiFrontDeskPriceMonthly Float     @default(29.99)
+
+  // SwarmLeads $9.99 add-on entitlement (billed through BounceBack Stripe).
+  swarmleadsAddonActive   Boolean   @default(false)
+  swarmleadsAddonSince    DateTime?
+  swarmleadsOutreach      SwarmleadsOutreach[]
   customLogoUrl           String?
   customBrandColor         String?
   smsTemplate             String?   @default("Hi, we missed your call. Here is our booking link to secure your spot: {booking_link}")
@@ -61,6 +66,28 @@ model Account {
   a2pTwilioCampaignSid     String?
   a2pPrivacyPolicyUrl     String?
   a2pTermsOfServiceUrl    String?
+}
+
+enum SwarmleadsOutreachStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+// Landing table for phone leads pushed from SwarmLeads' outreach queue.
+// Kept separate from the reactive Twilio CallLog flow; dispatch is Phase 3.
+model SwarmleadsOutreach {
+  id           String                   @id @default(uuid())
+  accountId    String
+  account      Account                  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  phone        String // AES-256-GCM encrypted at application layer
+  businessName String?
+  metadata     Json?
+  status       SwarmleadsOutreachStatus @default(QUEUED)
+  createdAt    DateTime                 @default(now())
+
+  @@index([accountId])
+  @@index([status])
 }
 
 model LeadToken {
@@ -189,6 +216,9 @@ model LoginToken {
   email     String
   expiresAt DateTime
   usedAt    DateTime?
+  // When set, verify redirects here with a signed SwarmLeads user JWT instead
+  // of establishing a BounceBack session (cross-app unified login).
+  returnTo  String?
   createdAt DateTime  @default(now())
 
   @@index([token])

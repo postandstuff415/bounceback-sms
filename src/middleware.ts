@@ -4,6 +4,8 @@ import type { NextRequest } from "next/server";
 // Paths that should NOT require authentication
 const PUBLIC_PATHS = [
   "/api/auth/login",
+  "/api/auth/verify",
+  "/api/integrations/swarmleads/",
   "/api/checkout",
   "/api/webhooks/stripe",
   "/api/webhooks/twilio-voice",
