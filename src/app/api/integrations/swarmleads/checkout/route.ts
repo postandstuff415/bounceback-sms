@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { authenticateBridgeRequest } from "@/lib/bridge-auth";
-import { resolvePriceFor } from "@/lib/pricing";
+import { resolvePriceFor, ensureCustomerForEmail } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -46,11 +46,17 @@ export async function POST(req: Request) {
       // The customer is coming from SwarmLeads, so BounceBack is the SECOND
       // product — resolvePriceFor returns the $9.99 add-on rate when they
       // already hold an active SwarmLeads subscription, else $29.99 standalone.
-      const { priceId, tier, customerId } = await resolvePriceFor(stripe, "bounceback", {
+      const { priceId, tier } = await resolvePriceFor(stripe, "bounceback", {
         customerId: account.stripeCustomerId,
         email,
       });
-      console.log(`[SwarmLeads Checkout] BounceBack ${tier} price for ${email}`);
+
+      // Always bill against ONE customer per email — never let Checkout mint a
+      // duplicate (that's how parallel subscriptions got created).
+      const customerId =
+        account.stripeCustomerId ?? (await ensureCustomerForEmail(stripe, email));
+
+      console.log(`[SwarmLeads Checkout] BounceBack ${tier} price for ${email} (customer ${customerId})`);
 
       // No `payment_method_types` — let Stripe pick eligible methods dynamically.
       const session = await stripe.checkout.sessions.create({

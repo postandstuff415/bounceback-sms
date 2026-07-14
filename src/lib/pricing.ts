@@ -43,37 +43,51 @@ export async function priceIdByLookupKey(stripe: Stripe, lookupKey: string): Pro
 }
 
 /**
- * Find the Stripe customer for an email. Both apps share one Stripe account and
- * one email identity, so a customer created by BounceBack is discoverable from
- * SwarmLeads and vice-versa — even before the local record has a customer id.
+ * The customer we should BILL against for this email.
+ *
+ * One email can own SEVERAL Stripe customers — the old checkout never passed
+ * `customer`, so Stripe Checkout minted a fresh one per session (which is how a
+ * user ended up with two parallel BounceBack subscriptions). Prefer a customer
+ * that already holds a subscription so we don't strand charges on an empty
+ * duplicate; otherwise take the oldest for stability.
  */
 export async function findCustomerIdByEmail(stripe: Stripe, email: string): Promise<string | null> {
-  const { data } = await stripe.customers.list({ email: email.toLowerCase(), limit: 1 });
-  return data[0]?.id ?? null;
+  const { data } = await stripe.customers.list({ email: email.toLowerCase(), limit: 100 });
+  if (data.length === 0) return null;
+  if (data.length === 1) return data[0].id;
+
+  for (const customer of data) {
+    const subs = await stripe.subscriptions.list({ customer: customer.id, status: "all", limit: 1 });
+    if (subs.data.length > 0) return customer.id;
+  }
+  // Stripe lists newest-first; fall back to the oldest so we stay stable.
+  return data[data.length - 1].id;
+}
+
+/** Resolve-or-create exactly ONE Stripe customer for this email. */
+export async function ensureCustomerForEmail(stripe: Stripe, email: string): Promise<string> {
+  const existing = await findCustomerIdByEmail(stripe, email);
+  if (existing) return existing;
+  const created = await stripe.customers.create({ email: email.toLowerCase() });
+  return created.id;
 }
 
 /**
- * Does this customer already have an active subscription to the given app?
- * Matches against that app's two known price ids (standalone + add-on) rather
- * than expanding to the product — Stripe caps expansion at 4 levels.
+ * Does this customer already hold the given app?
+ *
+ * Delegates to the entitlements module, which counts `trialing` and `past_due`
+ * — NOT just `active`. Onboarding starts every customer on a 14-day trial, so
+ * checking only `active` meant a trialing customer adding their second product
+ * was charged the $29.99 standalone rate instead of the $9.99 add-on.
  */
 export async function hasActiveProduct(
   stripe: Stripe,
   customerId: string,
   app: App
 ): Promise<boolean> {
-  const [standalone, addon] = await Promise.all([
-    priceIdByLookupKey(stripe, LOOKUP_KEYS[app].standalone),
-    priceIdByLookupKey(stripe, LOOKUP_KEYS[app].addon),
-  ]);
-  const appPriceIds = new Set([standalone, addon]);
-
-  const subs = await stripe.subscriptions.list({
-    customer: customerId,
-    status: "active",
-    limit: 100,
-  });
-  return subs.data.some((sub) => sub.items.data.some((item) => appPriceIds.has(item.price.id)));
+  const { computeEntitlements, grantsAccess } = await import("@/lib/entitlements");
+  const entitlements = await computeEntitlements(stripe, customerId);
+  return grantsAccess(entitlements[app]);
 }
 
 /**
@@ -90,17 +104,26 @@ export async function resolvePriceFor(
   opts: { customerId?: string | null; email?: string | null }
 ): Promise<{ priceId: string; tier: "standalone" | "addon"; customerId: string | null }> {
   const other: App = app === "bounceback" ? "swarmleads" : "bounceback";
+  const { computeEntitlements, computeEntitlementsForEmail, grantsAccess } = await import(
+    "@/lib/entitlements"
+  );
 
   let customerId = opts.customerId ?? null;
-  if (!customerId && opts.email) {
-    customerId = await findCustomerIdByEmail(stripe, opts.email);
+
+  // Ownership is resolved by EMAIL across every customer holding it — one email
+  // can own several customers, and the subscription proving ownership may sit on
+  // any of them.
+  let ownsOther = false;
+  if (opts.email) {
+    const entitlements = await computeEntitlementsForEmail(stripe, opts.email);
+    ownsOther = grantsAccess(entitlements[other]);
+    customerId ??= await findCustomerIdByEmail(stripe, opts.email);
+  } else if (customerId) {
+    const entitlements = await computeEntitlements(stripe, customerId);
+    ownsOther = grantsAccess(entitlements[other]);
   }
 
-  let tier: "standalone" | "addon" = "standalone";
-  if (customerId && (await hasActiveProduct(stripe, customerId, other))) {
-    tier = "addon";
-  }
-
+  const tier: "standalone" | "addon" = ownsOther ? "addon" : "standalone";
   const priceId = await priceIdByLookupKey(stripe, LOOKUP_KEYS[app][tier]);
   return { priceId, tier, customerId };
 }

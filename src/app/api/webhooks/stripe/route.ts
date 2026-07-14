@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
 import Stripe from "stripe";
 import { encrypt } from "@/lib/encryption";
+import { computeEntitlements, grantsAccess } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,52 @@ const isTwilioConfigured = () => {
     token.trim() !== ""
   );
 };
+
+/**
+ * Recompute this customer's entitlements from Stripe and persist them.
+ *
+ * Both products share one Stripe customer, so a per-event `updateMany` keyed on
+ * `stripeCustomerId` cannot tell WHICH product an event concerns — cancelling
+ * SwarmLeads used to flip the still-paid BounceBack account to "inactive", and
+ * `swarmleadsAddonActive` was only ever set true, never cleared on churn.
+ * Deriving both flags from Stripe fixes both, and is safe to run on any event.
+ */
+async function syncEntitlements(customerId: string, eventType: string): Promise<void> {
+  if (!isStripeConfigured()) return;
+
+  const stripe = new Stripe(process.env.STRIPE_API_KEY!);
+  const entitlements = await computeEntitlements(stripe, customerId);
+
+  const account = await prisma.account.findFirst({
+    where: { stripeCustomerId: customerId },
+    select: { id: true, swarmleadsAddonSince: true },
+  });
+  if (!account) {
+    console.log(`[Stripe Webhook] ${eventType}: no account for customer ${customerId}; skipping sync.`);
+    return;
+  }
+
+  // BounceBack access == this customer's BounceBack entitlement.
+  // `swarmleadsAddonActive` is what SwarmLeads reads over the bridge to decide
+  // whether to show BounceBack features, i.e. "does this user have BounceBack".
+  const bouncebackActive = grantsAccess(entitlements.bounceback);
+
+  await prisma.account.update({
+    where: { id: account.id },
+    data: {
+      subscriptionStatus: entitlements.bounceback,
+      swarmleadsAddonActive: bouncebackActive,
+      swarmleadsAddonSince: bouncebackActive
+        ? account.swarmleadsAddonSince ?? new Date()
+        : null,
+    },
+  });
+
+  console.log(
+    `[Stripe Webhook] ${eventType}: customer ${customerId} -> ` +
+      `bounceback=${entitlements.bounceback}, swarmleads=${entitlements.swarmleads}`
+  );
+}
 
 // Generate a realistic mock phone number using the US area code of realPhoneNumber
 function generateMockNumber(realPhoneNumber: string): string {
@@ -90,16 +137,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Missing session metadata" }, { status: 400 });
       }
 
-      // SwarmLeads $9.99 add-on checkout — activate the entitlement and stop.
-      // Separate, self-contained path so it never touches onboarding/Twilio.
+      // Add-on checkout (bought from SwarmLeads) — self-contained path that
+      // never touches onboarding/Twilio. Link the Stripe customer, then derive
+      // the entitlement from Stripe rather than hardcoding it true, so a later
+      // cancellation can actually clear it.
       if (metadata.addon === "true" && metadata.email) {
-        const result = await prisma.account.updateMany({
-          where: { email: metadata.email.toLowerCase() },
-          data: { swarmleadsAddonActive: true, swarmleadsAddonSince: new Date() },
-        });
-        console.log(
-          `[Stripe Webhook] SwarmLeads add-on activated for ${metadata.email} (${result.count} account(s)).`
-        );
+        const customerId = typeof session.customer === "string" ? session.customer : undefined;
+        if (customerId) {
+          await prisma.account.updateMany({
+            where: { email: metadata.email.toLowerCase() },
+            data: { stripeCustomerId: customerId },
+          });
+          await syncEntitlements(customerId, "checkout.session.completed(addon)");
+        }
         return NextResponse.json({ received: true });
       }
 
@@ -235,60 +285,29 @@ export async function POST(req: Request) {
       });
 
       console.log(`[Database Success] Account ${email} created/updated with Twilio number ${assignedTwilioNum}`);
-    }
 
-    // Subscription lifecycle — keep account access in sync with billing state.
-    // Maps a Stripe customer to our Account via stripeCustomerId and updates
-    // subscriptionStatus so cancellations / failed payments actually cut off access.
-    else if (
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
-    ) {
-      const subscription = event.data.object;
-      const customerId = subscription.customer;
-
-      // Normalize Stripe status -> our internal status vocabulary
-      // (active, trialing, past_due, inactive)
-      let status: string;
-      if (event.type === "customer.subscription.deleted") {
-        status = "inactive";
-      } else {
-        switch (subscription.status) {
-          case "active":
-            status = "active";
-            break;
-          case "trialing":
-            status = "trialing";
-            break;
-          case "past_due":
-            status = "past_due";
-            break;
-          // canceled, unpaid, incomplete, incomplete_expired, paused -> no access
-          default:
-            status = "inactive";
-        }
+      // Derive access from Stripe (handles the 14-day trial => "trialing").
+      if (typeof stripeCustomerId === "string") {
+        await syncEntitlements(stripeCustomerId, "checkout.session.completed(onboarding)");
       }
-
-      const result = await prisma.account.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: { subscriptionStatus: status },
-      });
-      console.log(
-        `[Stripe Webhook] ${event.type}: set subscriptionStatus="${status}" for customer ${customerId} (${result.count} account(s) updated).`
-      );
     }
 
-    // A renewal payment failed — flag the account as past_due until it recovers.
-    else if (event.type === "invoice.payment_failed") {
-      const invoice = event.data.object;
-      const customerId = invoice.customer;
-      const result = await prisma.account.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: { subscriptionStatus: "past_due" },
-      });
-      console.log(
-        `[Stripe Webhook] invoice.payment_failed: set subscriptionStatus="past_due" for customer ${customerId} (${result.count} account(s) updated).`
-      );
+    // Subscription lifecycle. Both products live on ONE Stripe customer, so we
+    // must never infer state from a single event — that's what made cancelling
+    // one product deactivate the other. Instead recompute the customer's whole
+    // entitlement picture from Stripe. Idempotent and order-independent.
+    else if (
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted" ||
+      event.type === "invoice.payment_failed" ||
+      event.type === "invoice.payment_succeeded"
+    ) {
+      const obj = event.data.object;
+      const customerId = typeof obj.customer === "string" ? obj.customer : obj.customer?.id;
+      if (customerId) {
+        await syncEntitlements(customerId, event.type);
+      }
     }
 
     return NextResponse.json({ received: true });

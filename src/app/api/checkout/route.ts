@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
-import { resolvePriceFor } from "@/lib/pricing";
+import { resolvePriceFor, ensureCustomerForEmail } from "@/lib/pricing";
 
 // Helper to check if Stripe is properly configured
 const isStripeConfigured = () => {
@@ -34,11 +34,19 @@ export async function POST(req: Request) {
         where: { email: email.toLowerCase() },
         select: { stripeCustomerId: true },
       });
-      const { priceId, tier, customerId } = await resolvePriceFor(stripe, "bounceback", {
+      const { priceId, tier } = await resolvePriceFor(stripe, "bounceback", {
         customerId: existing?.stripeCustomerId,
         email,
       });
-      console.log(`[Checkout] BounceBack ${tier} price for ${email}`);
+
+      // Resolve-or-create ONE customer and always pass it. Historically this
+      // route omitted `customer`, so Stripe Checkout minted a fresh Customer on
+      // every session — a user who onboarded twice ended up with two customers
+      // and two parallel $29.99 subscriptions billing at once.
+      const customerId =
+        existing?.stripeCustomerId ?? (await ensureCustomerForEmail(stripe, email));
+
+      console.log(`[Checkout] BounceBack ${tier} price for ${email} (customer ${customerId})`);
 
       // Create a Stripe Checkout Session.
       // Note: no `payment_method_types` — Stripe selects eligible methods
