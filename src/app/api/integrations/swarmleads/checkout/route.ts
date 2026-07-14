@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { authenticateBridgeRequest } from "@/lib/bridge-auth";
+import { resolvePriceFor } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
-
-// The SwarmLeads $9.99/mo add-on, billed through the BounceBack Stripe account.
-const ADDON_PRICE_CENTS = 999;
 
 const isStripeConfigured = () => {
   const key = process.env.STRIPE_API_KEY;
@@ -45,24 +43,20 @@ export async function POST(req: Request) {
         apiVersion: "2025-01-27.acacia" as any,
       });
 
+      // The customer is coming from SwarmLeads, so BounceBack is the SECOND
+      // product — resolvePriceFor returns the $9.99 add-on rate when they
+      // already hold an active SwarmLeads subscription, else $29.99 standalone.
+      const { priceId, tier, customerId } = await resolvePriceFor(stripe, "bounceback", {
+        customerId: account.stripeCustomerId,
+        email,
+      });
+      console.log(`[SwarmLeads Checkout] BounceBack ${tier} price for ${email}`);
+
+      // No `payment_method_types` — let Stripe pick eligible methods dynamically.
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
         mode: "subscription",
-        customer: account.stripeCustomerId || undefined,
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: "SwarmLeads BounceBack Add-on",
-                description: "Missed-call auto-text add-on for SwarmLeads leads",
-              },
-              unit_amount: ADDON_PRICE_CENTS, // $9.99/month
-              recurring: { interval: "month" },
-            },
-            quantity: 1,
-          },
-        ],
+        customer: customerId || undefined,
+        line_items: [{ price: priceId, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
         metadata: { addon: "true", email },

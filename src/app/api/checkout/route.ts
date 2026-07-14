@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { prisma } from "@/lib/prisma";
+import { resolvePriceFor } from "@/lib/pricing";
 
 // Helper to check if Stripe is properly configured
 const isStripeConfigured = () => {
@@ -26,25 +28,24 @@ export async function POST(req: Request) {
 
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-      // Create a Stripe Checkout Session
+      // If this email already has a Stripe customer with an active SwarmLeads
+      // subscription, BounceBack is an add-on ($9.99) rather than standalone.
+      const existing = await prisma.account.findUnique({
+        where: { email: email.toLowerCase() },
+        select: { stripeCustomerId: true },
+      });
+      const { priceId, tier, customerId } = await resolvePriceFor(stripe, "bounceback", {
+        customerId: existing?.stripeCustomerId,
+        email,
+      });
+      console.log(`[Checkout] BounceBack ${tier} price for ${email}`);
+
+      // Create a Stripe Checkout Session.
+      // Note: no `payment_method_types` — Stripe selects eligible methods
+      // dynamically from Dashboard settings, which improves conversion.
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: {
-                name: "BounceBack SMS Subscription",
-                description: "Missed Call Text-Back Automation Service",
-              },
-              unit_amount: 2999, // $29.99/month
-              recurring: {
-                interval: "month",
-              },
-            },
-            quantity: 1,
-          },
-        ],
+        customer: customerId || undefined,
+        line_items: [{ price: priceId, quantity: 1 }],
         mode: "subscription",
         subscription_data: {
           trial_period_days: 14,
