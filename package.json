@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "build:mobile": "node scripts/build-mobile.js",
-    "start": "next start",
+    "dev": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- next dev",
+    "build": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=prod --path=/bounceback-sms -- next build",
+    "build:mobile": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=prod --path=/bounceback-sms -- node scripts/build-mobile.js",
+    "start": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=prod --path=/bounceback-sms -- next start",
+    "autonomous-engine": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- tsx scripts/autonomous-engine.ts",
+    "maps-scraper": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- tsx scripts/maps-scraper.ts",
+    "monthly-report": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=prod --path=/bounceback-sms -- tsx scripts/monthly-report.ts",
+    "seed-admin": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- node scripts/seed-admin.js",
+    "setup-stripe-pricing": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- node scripts/setup-stripe-pricing.mjs",
+    "verify-swarmleads-bridge": "infisical run --projectId=98ac6ff9-be43-46a1-8fbf-131e217bccd3 --env=dev --path=/bounceback-sms -- sh scripts/verify-swarmleads-bridge.sh",
     "lint": "eslint"
   },
   "dependencies": {
@@ -33,7 +39,6 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "prisma": "^5.22.0",

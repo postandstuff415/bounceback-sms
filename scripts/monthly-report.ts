@@ -1,10 +1,5 @@
 import { prisma } from "../src/lib/prisma";
 import twilio from "twilio";
-import { config } from "dotenv";
-import path from "path";
-
-// Load environment variables
-config({ path: path.resolve(__dirname, "../.env") });
 
 // Helper to check if Twilio is properly configured
 const isTwilioConfigured = () => {
