@@ -81,11 +81,10 @@ export default function OnboardPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.bookingLink.trim()) {
-      setError("Please enter your booking link.");
-      return;
-    }
-    if (!formData.bookingLink.startsWith("http://") && !formData.bookingLink.startsWith("https://")) {
+    // Booking link is optional: contractors without a scheduler fall back to the
+    // conversational missed-call reply. Only validate the format when supplied.
+    const trimmedLink = formData.bookingLink.trim();
+    if (trimmedLink && !trimmedLink.startsWith("http://") && !trimmedLink.startsWith("https://")) {
       setError("Booking link must start with http:// or https://");
       return;
     }
@@ -285,17 +284,19 @@ export default function OnboardPage() {
               <div className="space-y-4">
                 <div>
                   <label htmlFor="bookingLink" className="block text-sm font-semibold text-zinc-700">
-                    Booking or Scheduling Link
+                    Booking or Scheduling Link{" "}
+                    <span className="font-normal text-zinc-400">(optional)</span>
                   </label>
                   <p className="text-xs text-zinc-400 mb-2 leading-relaxed">
                     Where should customers schedule their appointments? (Calendly, Acuity, GlossGenius, etc.)
+                    Leave this blank and we&apos;ll reply to missed calls by asking the caller what they
+                    need and where they&apos;re located, so you can take it from there.
                   </p>
                   <div className="mt-1.5">
                     <input
                       type="url"
                       name="bookingLink"
                       id="bookingLink"
-                      required
                       value={formData.bookingLink}
                       onChange={handleChange}
                       placeholder="https://calendly.com/your-business"

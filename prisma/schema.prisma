@@ -22,7 +22,7 @@ model Account {
   businessName            String
   realPhoneNumber         String    // User's actual phone line (AES-256-GCM encrypted at application layer)
   assignedTwilioNum       String?   @unique // Dynamically provisioned Twilio number
-  bookingLink             String    // e.g., Calendly, Acuity, GlossGenius
+  bookingLink             String?   // Optional — e.g., Calendly, Acuity, GlossGenius. When absent the missed-call text-back uses the no-link fallback copy.
   role                    Role      @default(USER)
   stripeCustomerId        String?   @unique
   stripePriceId           String?
@@ -248,3 +248,4 @@ model A2pRegistration {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
+

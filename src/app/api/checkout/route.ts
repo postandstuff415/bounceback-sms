@@ -13,8 +13,9 @@ export async function POST(req: Request) {
   try {
     const { businessName, email, realPhoneNumber, bookingLink, agencyId } = await req.json();
 
-    // Basic validation
-    if (!businessName || !email || !realPhoneNumber || !bookingLink) {
+    // Basic validation — bookingLink is optional (contractors without a
+    // scheduler get the conversational missed-call fallback instead).
+    if (!businessName || !email || !realPhoneNumber) {
       return NextResponse.json(
         { error: "Missing required onboarding fields" },
         { status: 400 }
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
           businessName,
           email,
           realPhoneNumber,
-          bookingLink,
+          bookingLink: bookingLink || "",
           agencyId: agencyId || "",
           privacyAccepted: "true",
           termsAccepted: "true",
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
         businessName,
         email,
         realPhoneNumber,
-        bookingLink,
+        bookingLink: bookingLink || "",
         agencyId: agencyId || "",
         privacyAccepted: "true",
         termsAccepted: "true",

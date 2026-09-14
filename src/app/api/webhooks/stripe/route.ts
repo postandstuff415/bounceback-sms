@@ -156,7 +156,7 @@ export async function POST(req: Request) {
       const { businessName, email, realPhoneNumber, bookingLink, agencyId } = metadata;
       const stripeCustomerId = session.customer;
 
-      if (!businessName || !email || !realPhoneNumber || !bookingLink) {
+      if (!businessName || !email || !realPhoneNumber) {
         console.error("[Stripe Webhook] Incomplete metadata in session:", metadata);
         return NextResponse.json({ error: "Incomplete metadata fields" }, { status: 400 });
       }
@@ -250,7 +250,7 @@ export async function POST(req: Request) {
           businessName,
           realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
-          bookingLink,
+          bookingLink: bookingLink || null,
           stripeCustomerId,
           subscriptionStatus: "active",
           agencyId: resolvedAgencyId,
@@ -271,7 +271,7 @@ export async function POST(req: Request) {
           businessName,
           realPhoneNumber: encrypt(realPhoneNumber),
           assignedTwilioNum,
-          bookingLink,
+          bookingLink: bookingLink || null,
           stripeCustomerId,
           subscriptionStatus: "active",
           agencyId: resolvedAgencyId,

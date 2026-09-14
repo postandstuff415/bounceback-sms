@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
 import { encrypt } from "@/lib/encryption";
 import { getFcmMessaging } from "@/lib/firebase-admin";
+import { buildMissedCallSms } from "@/lib/sms-template";
 
 export const dynamic = "force-dynamic";
 
@@ -164,7 +165,9 @@ export async function POST(req: Request) {
     if (wasMissed) {
       console.log(`[Twilio Status Webhook] Missed call intercepted for ${account.businessName}! Triggering SMS back to caller: ${from}`);
 
-      const messageBody = `Stop losing jobs to competitors for $29.99/mo`;
+      // Resolve the contractor's own copy: their template with the booking link
+      // substituted, or the conversational fallback when no link is on file.
+      const messageBody = buildMissedCallSms(account);
 
       if (isTwilioConfigured()) {
         try {
@@ -189,7 +192,7 @@ export async function POST(req: Request) {
           console.error("[Twilio SMS Error] Failed to send SMS:", smsErr.message);
         }
       } else {
-        console.log(`[Mock Twilio SMS] (Credentials not configured) Sending mock text-back to ${from} with booking link: ${account.bookingLink}`);
+        console.log(`[Mock Twilio SMS] (Credentials not configured) Text-back to ${from}: "${messageBody}"`);
         smsSent = true; // Mark as true in mock mode to verify the successful recovery flow
         // Fire push notification telemetry to device
         await firePushNotification(account, from);
