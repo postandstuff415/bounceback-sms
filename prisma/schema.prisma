@@ -41,6 +41,7 @@ model Account {
   customBrandColor         String?
   smsTemplate             String?   @default("Hi, we missed your call. Here is our booking link to secure your spot: {booking_link}")
   intakeTickets           IntakeTicket[]
+  smsConversations        SmsConversation[]
   
   // Privacy & Terms acceptance tracking with versioning
   privacyAccepted         Boolean   @default(false)
@@ -249,3 +250,26 @@ model A2pRegistration {
   updatedAt           DateTime @updatedAt
 }
 
+/// One masked-number SMS thread between a lead and a contractor.
+///
+/// The contractor never sees a thread UI: inbound lead texts are relayed to
+/// their real mobile, and their reply to the Twilio number is routed back to
+/// the lead on the most recently active thread (or an explicitly targeted one).
+model SmsConversation {
+  id             String   @id @default(uuid())
+  accountId      String
+  account        Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  leadNumber     String   // AES-256-GCM encrypted at the application layer (PII)
+  leadNumberHash String   // deterministic HMAC of the number, for lookups
+
+  lastInboundAt  DateTime @default(now()) // drives "which thread is a bare reply for?"
+  lastRelayedAt  DateTime?
+  optedOut       Boolean  @default(false) // lead sent STOP; never message them again
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([accountId, leadNumberHash])
+  @@index([accountId, lastInboundAt])
+}

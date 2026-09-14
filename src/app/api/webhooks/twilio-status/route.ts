@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import twilio from "twilio";
-import { encrypt } from "@/lib/encryption";
+import { encrypt, hashPhone, normalizePhone } from "@/lib/encryption";
 import { getFcmMessaging } from "@/lib/firebase-admin";
 import { buildMissedCallSms } from "@/lib/sms-template";
 
@@ -183,6 +183,23 @@ export async function POST(req: Request) {
             });
             smsSent = true;
             console.log(`[Twilio SMS] Missed call text-back sent to ${from} from ${twilioFrom}`);
+
+            // Open the relay thread now, so the contractor can reply to this
+            // caller from their mobile before the caller texts back.
+            const normalizedCaller = normalizePhone(from);
+            if (normalizedCaller) {
+              const leadNumberHash = hashPhone(normalizedCaller);
+              await prisma.smsConversation.upsert({
+                where: { accountId_leadNumberHash: { accountId: account.id, leadNumberHash } },
+                create: {
+                  accountId: account.id,
+                  leadNumber: encrypt(normalizedCaller),
+                  leadNumberHash,
+                  lastRelayedAt: new Date(),
+                },
+                update: { lastRelayedAt: new Date() },
+              });
+            }
             // Fire push notification telemetry to device
             await firePushNotification(account, from);
           } else {

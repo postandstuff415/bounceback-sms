@@ -126,3 +126,44 @@ export function decrypt(encryptedText: string | null | undefined): string {
 export function generateKey(): string {
   return crypto.randomBytes(32).toString("hex");
 }
+
+/**
+ * Deterministic lookup hash for a phone number.
+ *
+ * encrypt() uses a random IV, so the same number never produces the same
+ * ciphertext and cannot be used in a WHERE clause. This gives a stable key for
+ * lookups while keeping the number itself unreadable at rest. It is an HMAC
+ * keyed with the derived encryption key rather than a bare SHA-256, so the
+ * (small) phone-number space can't simply be enumerated against the column.
+ */
+export function hashPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  return crypto
+    .createHmac("sha256", getEncryptionKey())
+    .update(normalizePhone(phone))
+    .digest("hex");
+}
+
+/**
+ * Normalize a phone number to E.164 so formatting differences don't split a
+ * thread or, worse, make a contractor's own reply look like a new lead.
+ *
+ * Onboarding collects the contractor's mobile as free text (the placeholder is
+ * "(512) 555-0199"), while Twilio always sends E.164 ("+15125550199"). Without
+ * this, those two never compare equal. Bare 10-digit input is treated as
+ * NANP/US, which matches the product's market.
+ */
+export function normalizePhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const raw = phone.trim();
+  const hadPlus = raw.startsWith("+");
+  const digits = raw.replace(/[^\d]/g, "");
+  if (!digits) return "";
+
+  // Explicit international input is already country-coded.
+  if (hadPlus) return `+${digits}`;
+
+  if (digits.length === 10) return `+1${digits}`;            // (512) 555-0199
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`; // 1512...
+  return `+${digits}`;
+}
