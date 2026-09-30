@@ -39,7 +39,7 @@ BounceBack SMS is a Micro-SaaS platform designed for local service providers (pl
    ```
 
 2. **Database Setup:**
-   Configure `DATABASE_URL` in `.env` and run migrations:
+   Store configuration in Infisical project `98ac6ff9-be43-46a1-8fbf-131e217bccd3` under `/bounceback-sms`; package scripts inject it before running migrations:
    ```bash
    npx prisma db push
    ```

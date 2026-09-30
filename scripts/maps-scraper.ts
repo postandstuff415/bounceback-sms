@@ -1,9 +1,4 @@
 import { prisma } from "../src/lib/prisma";
-import { config } from "dotenv";
-import path from "path";
-
-// Load environment variables
-config({ path: path.resolve(__dirname, "../.env") });
 
 interface PlaceCandidate {
   name: string;
